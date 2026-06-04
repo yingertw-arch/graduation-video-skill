@@ -74,28 +74,63 @@ Legacy title card is also valid:
   "narration": "今天，我們帶著笑容和勇氣，走向下一段旅程。",
   "duration": 5,
   "layout": "photo_stack",
-  "motion": "slow_push_in",
-  "effect": "zoom-in",
+  "motion": "auto",
+  "effect": "auto",
   "style": "vibrant",
   "frame": "thin_white",
-  "transition": "dissolve",
+  "transition": "auto",
+  "transition_duration": 0.6,
+  "pause_after": 0,
   "sound_cue": "none"
 }
 ```
 
 For videos, use `layout: "letterbox_video"` for vertical or non-16:9 clips and `style: "none"` unless the renderer supports video filters.
 
+## Multi-photo layouts
+
+Use `files` instead of `file` when one beat should show several photos together.
+
+```json
+{
+  "files": ["IMG_001.jpg", "IMG_002.jpg", "IMG_003.jpg", "IMG_004.jpg"],
+  "narration": "每一張笑臉，都成為今天最亮的風景。",
+  "duration": 5,
+  "layout": "video_wall",
+  "motion": "auto",
+  "transition": "slide_left"
+}
+```
+
+Recommended layouts:
+
+- `video_wall` / `grid_2x2`: 4 photos, energetic activities, performances, field trips.
+- `mosaic`: 3 photos, one main image plus two detail moments.
+- `split_two`: 2 photos, before/after or process/result.
+- `photo_stack`: 2-3 photos, warm memory or class-life sequence.
+
+## Automatic effect selection
+
+Use `motion: "auto"` and `transition: "auto"` when the renderer should infer effects:
+
+- Wide photo: usually pan left/right.
+- Portrait photo: usually slow pull back to preserve the subject.
+- Square/group photo: usually slow push in.
+- `lively_fast` scene: slide/zoom-cut style transitions.
+- `emotional_pause` scene: fade transition and slower motion.
+- `pause_after`: short beat pause, usually `0.2`-`0.8` seconds.
+
 ## Allowed values
 
 - `visual_profile` / `color_look`: `warm_cinematic`, `bright_documentary`, `lively_school`, `ceremony_gold`, `soft_pastel`, `natural`
 - `story_role`: `hook`, `setup`, `peak`, `turn`, `echo`
 - `rhythm`: `warm_slow`, `lively_fast`, `cinematic_peak`, `emotional_pause`, `documentary`
-- `layout`: `full_bleed`, `photo_stack`, `split_two`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`
-- `motion`: `slow_push_in`, `slow_pull_back`, `pan_right`, `pan_left`, `parallax_soft`, `handheld_soft`, `none`
-- `effect`: `zoom-in`, `pan-right`, `pan-left`, `none`
+- `layout`: `full_bleed`, `photo_stack`, `split_two`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`, `video_wall`, `grid_2x2`, `mosaic`
+- `motion`: `auto`, `slow_push_in`, `slow_pull_back`, `pan_right`, `pan_left`, `parallax_soft`, `handheld_soft`, `none`
+- `effect`: `auto`, `zoom-in`, `pan-right`, `pan-left`, `fade-in`, `blur-in`, `pop-in`, `none`
 - `style`: `vibrant`, `vintage`, `sepia`, `film`, `bw`, `none`
 - `frame`: `polaroid`, `film_strip`, `thin_white`, `shadow_card`, `none`
-- `transition`: `dissolve`, `slide_left`, `slide_right`, `zoom_cut`, `whip_pan`, `flash_white`, `match_cut`, `fade`
+- `transition`: `auto`, `dissolve`, `slide_left`, `slide_right`, `zoom_cut`, `whip_pan`, `flash_white`, `match_cut`, `fade`, `hold`
 - `titlecard.template`: `cinematic_blur`, `paper_memory`, `ceremony_gold`, `clean_documentary`, `chalkboard`
 - `chapter_marker.style`: `lower_third_line`, `date_stamp`, `small_badge`, `none`
 - `sound_cue`: `soft_hit`, `soft_whoosh`, `beat_hit`, `camera_click`, `none`

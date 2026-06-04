@@ -20,6 +20,9 @@ Use this when the video must feel more polished than a plain slideshow.
 - `film_frame`: performances, sports, peak action.
 - `detail_focus`: hands, awards, artwork, tools, nature, notes.
 - `letterbox_video`: vertical or non-16:9 footage.
+- `video_wall`: 4 photos shown like a TV wall; best for lively activity bursts.
+- `grid_2x2`: clean four-photo layout for teaching records or achievement summaries.
+- `mosaic`: one large photo plus two smaller details; best when one image is the hero.
 
 Avoid using the same layout more than 3-4 times in a row unless the scene is intentionally calm.
 
@@ -39,8 +42,21 @@ Avoid using the same layout more than 3-4 times in a row unless the scene is int
 - Use `flash_white` only for applause, stage, award, or beat moments.
 - Use `match_cut` when two images have similar composition.
 - Use `fade` for title cards and emotional pauses.
+- Use `hold` plus `pause_after` for a visual comma or beat stop.
 
 Strong transitions become cheap when repeated too often.
+
+## Automatic motion selection
+
+Use `motion: "auto"` unless a specific move is needed. The baseline renderer infers:
+
+- Wide image: pan left or right.
+- Portrait image: slow pull back.
+- Square/group image: slow push in.
+- Lively/peak scene: stronger push in or zoom-cut transition.
+- Emotional scene: slow pull back and fade.
+
+Every still image should either specify `motion` or use `auto`.
 
 ## Filter discipline
 

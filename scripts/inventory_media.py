@@ -50,6 +50,31 @@ def image_taken_at(path: Path) -> str | None:
         return None
 
 
+def image_info(path: Path) -> dict[str, Any]:
+    if path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".heic"}:
+        return {}
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            ratio = img.width / max(1, img.height)
+            if ratio > 1.45:
+                suggested_motion = "pan_right"
+            elif ratio < 0.85:
+                suggested_motion = "slow_pull_back"
+            else:
+                suggested_motion = "slow_push_in"
+            return {
+                "width": img.width,
+                "height": img.height,
+                "aspect_ratio": round(ratio, 3),
+                "orientation": "landscape" if ratio > 1.2 else "portrait" if ratio < 0.9 else "square",
+                "suggested_motion": suggested_motion,
+            }
+    except Exception as exc:
+        return {"image_error": str(exc)}
+
+
 def scan(root: Path) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     unsupported: list[str] = []
@@ -76,6 +101,7 @@ def scan(root: Path) -> dict[str, Any]:
             "taken_at": image_taken_at(path),
             "warnings": [],
         }
+        item.update(image_info(path))
 
         if stat.st_size == 0:
             item["warnings"].append("empty file")

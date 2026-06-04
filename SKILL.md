@@ -51,8 +51,12 @@ Save `script.json` before approval only if the user asks for a draft file.
 3. **Design visual language**
    - Pick one global `visual_profile`.
    - Use motion title cards, not plain black screens, unless the user asks for a simple slideshow.
-   - Vary layouts: `full_bleed`, `split_two`, `photo_stack`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`.
-   - Use transitions and sound cues as story punctuation, not on every clip.
+   - Every photo should have an explicit or automatic entrance/motion choice: `motion: "auto"` is acceptable and lets the renderer infer pan/zoom from the image.
+   - Vary layouts: `full_bleed`, `split_two`, `photo_stack`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`, `video_wall`, `grid_2x2`, `mosaic`.
+   - Use `files: [...]` for multi-photo layouts such as TV-wall/video wall, grid, mosaic, or split-screen sequences.
+   - Give every media item a story-appropriate `transition`; use `transition: "auto"` when the renderer should choose by rhythm.
+   - Use `pause_after` for intentional beat pauses, emotional stops, or comma-like visual punctuation.
+   - Use sound cues as story punctuation, not on every clip.
    - Read `references/pro-design.md` only when detailed presets are needed.
 
 4. **Create `script.json`**
@@ -67,6 +71,7 @@ Save `script.json` before approval only if the user asks for a draft file.
 
 6. **Render**
    - Use bundled `scripts/generate_video.py` for a deterministic baseline renderer.
+   - The baseline renderer supports automatic image-based motion selection, slow zoom/pan, video-wall/grid/mosaic still layouts, fade/dissolve/slide-like transitions, and short pauses.
    - If the user has a more advanced renderer, use it instead after confirming its path.
    - Do not install missing packages globally without approval; prefer a local virtual environment.
 

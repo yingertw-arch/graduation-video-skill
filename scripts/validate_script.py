@@ -13,12 +13,12 @@ ALLOWED = {
     "visual_profile": {"warm_cinematic", "bright_documentary", "lively_school", "ceremony_gold", "soft_pastel", "natural"},
     "story_role": {"hook", "setup", "peak", "turn", "echo"},
     "rhythm": {"warm_slow", "lively_fast", "cinematic_peak", "emotional_pause", "documentary"},
-    "layout": {"full_bleed", "photo_stack", "split_two", "scrapbook", "film_frame", "detail_focus", "letterbox_video"},
-    "motion": {"slow_push_in", "slow_pull_back", "pan_right", "pan_left", "parallax_soft", "handheld_soft", "none"},
-    "effect": {"zoom-in", "pan-right", "pan-left", "none"},
+    "layout": {"full_bleed", "photo_stack", "split_two", "scrapbook", "film_frame", "detail_focus", "letterbox_video", "video_wall", "grid_2x2", "mosaic"},
+    "motion": {"auto", "slow_push_in", "slow_pull_back", "pan_right", "pan_left", "parallax_soft", "handheld_soft", "none"},
+    "effect": {"auto", "zoom-in", "pan-right", "pan-left", "fade-in", "blur-in", "pop-in", "none"},
     "style": {"vibrant", "vintage", "sepia", "film", "bw", "none"},
     "frame": {"polaroid", "film_strip", "thin_white", "shadow_card", "none"},
-    "transition": {"dissolve", "slide_left", "slide_right", "zoom_cut", "whip_pan", "flash_white", "match_cut", "fade"},
+    "transition": {"auto", "dissolve", "slide_left", "slide_right", "zoom_cut", "whip_pan", "flash_white", "match_cut", "fade", "hold"},
     "template": {"cinematic_blur", "paper_memory", "ceremony_gold", "clean_documentary", "chalkboard"},
     "chapter_style": {"lower_third_line", "date_stamp", "small_badge", "none"},
     "sound_cue": {"soft_hit", "soft_whoosh", "beat_hit", "camera_click", "none"},
@@ -179,7 +179,17 @@ def validate(data: dict[str, Any], media_root: Path, target_duration: float | No
                 dur = item.get("duration", 3)
             else:
                 media_count += 1
-                media_file(r, ip, item.get("file"), media_root)
+                files = item.get("files")
+                if files is not None:
+                    if not isinstance(files, list) or not files:
+                        r.error(f"{ip}.files must be a non-empty array when present.")
+                    else:
+                        if len(files) > 6:
+                            r.warn(f"{ip}.files has many images; video_wall/mosaic works best with 2-6 files.")
+                        for fi, file_value in enumerate(files):
+                            media_file(r, f"{ip}.files[{fi}]", file_value, media_root, "file")
+                else:
+                    media_file(r, ip, item.get("file"), media_root)
                 if data.get("mode") == "voice" and not str(item.get("narration") or "").strip():
                     r.warn(f"{ip}.narration is empty in voice mode.")
                 allowed(r, f"{ip}.effect", item.get("effect"), "effect")
@@ -198,6 +208,11 @@ def validate(data: dict[str, Any], media_root: Path, target_duration: float | No
                 r.error(f"{ip}.duration must be a positive number when present.")
             else:
                 estimated += float(dur)
+            number(r, f"{ip}.transition_duration", item.get("transition_duration"), 0, 3)
+            pause_after = item.get("pause_after")
+            number(r, f"{ip}.pause_after", pause_after, 0, 5)
+            if isinstance(pause_after, (int, float)):
+                estimated += float(pause_after)
 
     if media_count == 0:
         r.warn("No photo/video media items found; only title cards are present.")
