@@ -1,23 +1,31 @@
 # Video Generation Reference
 
-Use this reference when preparing dependencies, music, rendering commands, and QA.
-
-## Dependency Check
-
-Check before installing:
+## Dependency check
 
 ```powershell
 python --version
 ffmpeg -version
 ffprobe -version
-python -c "import moviepy, PIL; import edge_tts; print('ok')"
+python -c "import PIL, moviepy; print('ok')"
 ```
 
-If packages are missing, ask before installing. Prefer a virtual environment in the project or material folder:
+Optional for voice mode:
+
+```powershell
+python -c "import edge_tts; print('edge_tts ok')"
+```
+
+If packages are missing, ask before installing. Prefer a local virtual environment:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install "moviepy==1.0.3" edge-tts "Pillow<10"
+.\.venv\Scripts\python.exe -m pip install moviepy==1.0.3 pillow edge-tts
+```
+
+For HEIC photos, also ask before installing:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pillow-heif
 ```
 
 Install FFmpeg only with approval:
@@ -26,51 +34,46 @@ Install FFmpeg only with approval:
 winget install Gyan.FFmpeg --source winget
 ```
 
-## Rendering Command Pattern
-
-Use PowerShell backticks for multiline commands:
+## Inventory
 
 ```powershell
-python -X utf8 "C:\path\to\generate_video.py" `
-  --script "C:\path\to\materials\script.json" `
-  --bgm "C:\path\to\materials\music.mp3"
+python scripts\inventory_media.py "C:\path\to\materials" --output "C:\path\to\materials\media_inventory.json"
 ```
 
-If no BGM:
+## Validate
 
 ```powershell
-python -X utf8 "C:\path\to\generate_video.py" `
-  --script "C:\path\to\materials\script.json"
+python scripts\validate_script.py "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --target-duration 120
 ```
 
-If the generator path is unknown, locate it from user context or ask for it. Do not rely on a hard-coded personal Desktop path.
+## Render with bundled baseline renderer
 
-## Suno Prompts
+Subtitle-only:
 
-Pick one and adapt the title/tone.
+```powershell
+python scripts\generate_video.py --script "C:\path\to\materials\script.json" --media-root "C:\path\to\materials"
+```
 
-Graduation, instrumental:
+With BGM:
+
+```powershell
+python scripts\generate_video.py --script "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --bgm "C:\path\to\music.mp3"
+```
+
+Voice mode requires `edge-tts`; if unavailable, render subtitle-only or ask to install it.
+
+## Suno prompts
+
+Graduation instrumental:
 
 ```text
 Warm nostalgic graduation background music, solo piano with gentle strings, slow and emotional, bittersweet and hopeful, no vocals, BPM 68
 ```
 
-Graduation, vocals:
-
-```text
-Warm Mandarin graduation song, piano with gentle strings, meaningful lyrics about growth, gratitude, friendship and farewell, clear vocals, BPM 68
-```
-
-Lively school activity, instrumental:
+Lively school activity instrumental:
 
 ```text
 Cheerful school celebration music, bright piano, ukulele and light percussion, uplifting and warm, youthful energy, no vocals, BPM 108
-```
-
-Lively school activity, vocals:
-
-```text
-Fun Mandarin school activity song, bright piano and upbeat percussion, cheerful lyrics about teamwork, friendship and achievement, clear vocals, BPM 108
 ```
 
 Teaching record/documentary:
@@ -79,34 +82,17 @@ Teaching record/documentary:
 Calm professional educational documentary background music, light piano with ambient pads, focused, warm and inspiring, no vocals, BPM 75
 ```
 
-School anniversary or ceremony:
+Ceremony:
 
 ```text
 Grand warm school ceremony music, piano, strings and soft percussion, dignified, hopeful and celebratory, no vocals, BPM 82
 ```
 
-## QA Checklist
-
-After rendering:
+## QA
 
 ```powershell
 ffprobe -v error -show_entries format=duration -show_streams "output.mp4"
-```
-
-Verify:
-
-- MP4 exists and file size is plausible.
-- Resolution is 1920x1080 unless the user requested otherwise.
-- Duration is near target.
-- Audio stream exists when BGM or TTS was requested.
-- Subtitles are not cut off and do not cover faces in key scenes.
-- Title cards fit comfortably and do not exceed the intended visual length.
-- BGM does not overpower narration.
-
-Optional frame extraction:
-
-```powershell
 ffmpeg -y -i "output.mp4" -vf "fps=1/30" "qa_frame_%03d.jpg"
 ```
 
-Inspect several frames visually before calling the job done.
+Check: file size, resolution, duration, audio stream, subtitle placement, title-card fit, cropping, BGM balance, and whether privacy-sensitive material appears.
