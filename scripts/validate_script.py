@@ -25,7 +25,8 @@ ALLOWED = {
     "chapter_style": {"lower_third_line", "date_stamp", "small_badge", "none"},
     "sound_cue": {"soft_hit", "soft_whoosh", "beat_hit", "camera_click", "none"},
 }
-SUPPORTED_MEDIA = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".m4v"}
+IMAGE_MEDIA = {".jpg", ".jpeg", ".png", ".heic"}
+SUPPORTED_MEDIA = IMAGE_MEDIA | {".mp4", ".mov", ".m4v"}
 VIDEO_MEDIA = {".mp4", ".mov", ".m4v"}
 
 
@@ -70,7 +71,14 @@ def number(r: Reporter, path: str, value: Any, minimum: float | None = None, max
         r.error(f"{path} must be <= {maximum}.")
 
 
-def media_file(r: Reporter, where: str, value: Any, media_root: Path, field: str = "file") -> None:
+def media_file(
+    r: Reporter,
+    where: str,
+    value: Any,
+    media_root: Path,
+    field: str = "file",
+    allowed_extensions: set[str] | None = None,
+) -> None:
     if not isinstance(value, str) or not value.strip():
         r.error(f"{where}.{field} must be a non-empty string.")
         return
@@ -80,8 +88,9 @@ def media_file(r: Reporter, where: str, value: Any, media_root: Path, field: str
         full = p
     else:
         full = media_root / p
-    if p.suffix.lower() not in SUPPORTED_MEDIA:
-        r.error(f"{where}.{field} has unsupported extension {p.suffix!r}.")
+    allowed = allowed_extensions or SUPPORTED_MEDIA
+    if p.suffix.lower() not in allowed:
+        r.error(f"{where}.{field} has unsupported extension {p.suffix!r}; allowed: {sorted(allowed)}.")
     if not full.exists():
         r.error(f"{where}.{field} does not exist: {full}")
     elif not full.is_file():
@@ -215,7 +224,7 @@ def validate(
                 if item.get("sound_cue") not in (None, "none"):
                     cue_count += 1
                 if item.get("background_file") is not None:
-                    media_file(r, ip, item["background_file"], media_root, "background_file")
+                    media_file(r, ip, item["background_file"], media_root, "background_file", IMAGE_MEDIA)
                 dur = item.get("duration", 3)
             else:
                 media_count += 1
@@ -227,7 +236,7 @@ def validate(
                         if len(files) > 6:
                             r.warn(f"{ip}.files has many images; video_wall/mosaic works best with 2-6 files.")
                         for fi, file_value in enumerate(files):
-                            media_file(r, f"{ip}.files[{fi}]", file_value, media_root, "file")
+                            media_file(r, f"{ip}.files[{fi}]", file_value, media_root, "file", IMAGE_MEDIA)
                 else:
                     media_file(r, ip, item.get("file"), media_root)
                 if data.get("mode") == "voice" and not str(item.get("narration") or "").strip():

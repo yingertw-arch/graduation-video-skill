@@ -81,7 +81,8 @@ After the approvals above are complete, when the user says "start generating", "
    - Use motion title cards, not plain black screens, unless the user asks for a simple slideshow.
    - Every photo should have an explicit or automatic entrance/motion choice: `motion: "auto"` is acceptable and lets the renderer infer pan/zoom from the image.
    - Vary layouts: `full_bleed`, `split_two`, `photo_stack`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`, `video_wall`, `grid_2x2`, `mosaic`.
-   - Use `files: [...]` for multi-photo layouts such as TV-wall/video wall, grid, mosaic, or split-screen sequences.
+   - Use `files: [...]` only for multi-photo layouts such as TV-wall/video wall, grid, mosaic, or split-screen sequences; `files` must contain images only.
+   - Use video clips as single `file` media items with `layout: "letterbox_video"` when needed.
    - Give every media item a story-appropriate `transition`; use `transition: "auto"` when the renderer should choose by rhythm.
    - Use `pause_after` for intentional beat pauses, emotional stops, or comma-like visual punctuation.
    - Use sound cues as story punctuation, not on every clip.

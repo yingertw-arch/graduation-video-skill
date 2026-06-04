@@ -369,21 +369,29 @@ def make_media_clip(item: dict[str, Any], media_root: Path, settings: dict[str, 
     return CompositeVideoClip([base] + ([sub] if sub else []), size=(width, height)).set_duration(duration)
 
 
-def apply_transitions(clips: list[Any], transitions: list[str], durations: list[float]) -> Any:
+def apply_transitions(clips: list[Any], transitions: list[str], durations: list[float], width: int, height: int) -> Any:
     if not clips:
         raise SystemExit("No renderable clips found.")
     processed = [clips[0]]
     for i, clip in enumerate(clips[1:], start=1):
         transition = transitions[i] if i < len(transitions) else "dissolve"
         td = min(0.8, max(0.0, durations[i] if i < len(durations) else 0.5))
-        if transition in {"fade", "dissolve", "slide_left", "slide_right", "whip_pan"} and td > 0:
+        if td > 0 and transition in {"slide_left", "whip_pan"}:
+            clip = clip.set_position(lambda t, td=td, width=width: (int(width * max(0, 1 - min(1, t / td))), 0))
+        elif td > 0 and transition == "slide_right":
+            clip = clip.set_position(lambda t, td=td, width=width: (int(-width * max(0, 1 - min(1, t / td))), 0))
+        elif td > 0 and transition == "zoom_cut":
+            clip = clip.resize(lambda t, td=td: 1.08 - 0.08 * min(1, max(0, t / td))).set_position(("center", "center"))
+        if transition in {"fade", "dissolve", "slide_left", "slide_right", "whip_pan", "zoom_cut", "flash_white", "match_cut"} and td > 0:
             try:
                 clip = clip.crossfadein(td)
             except Exception:
                 pass
         processed.append(clip)
     padding = -0.6 if len(processed) > 1 else 0
-    return concatenate_videoclips(processed, method="compose", padding=padding)
+    return concatenate_videoclips(processed, method="compose", padding=padding).on_color(
+        size=(width, height), color=(0, 0, 0), pos=("center", "center")
+    )
 
 
 async def edge_tts_to_file(text: str, voice: str, output: Path) -> None:
@@ -439,7 +447,7 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
     if not clips:
         raise SystemExit("No renderable clips found.")
 
-    video = apply_transitions(clips, transitions, transition_durations)
+    video = apply_transitions(clips, transitions, transition_durations, settings["width"], settings["height"])
     audio_clips = []
     audio_settings = data.get("audio") or {}
     if bgm:
@@ -459,6 +467,12 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                     raise SystemExit(
                         "voice mode requires the edge-tts Python package and internet access to Microsoft's online TTS service. "
                         "Install edge-tts in the local environment or use subtitle-only mode."
+                    ) from exc
+                except Exception as exc:
+                    raise SystemExit(
+                        "voice mode TTS generation failed. Check internet access, the selected voice name, and Microsoft's online TTS availability; "
+                        "or switch the script to subtitle-only mode. "
+                        f"Original error: {exc}"
                     ) from exc
     if audio_clips:
         video = video.set_audio(CompositeAudioClip(audio_clips))

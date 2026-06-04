@@ -124,8 +124,9 @@ The baseline renderer supports:
 
 - `motion: "auto"`: infer pan/zoom from image aspect ratio and scene rhythm.
 - Photo motion: `slow_push_in`, `slow_pull_back`, `pan_right`, `pan_left`.
-- Multi-photo layouts through `files`: `video_wall`, `grid_2x2`, `mosaic`, `split_two`, `photo_stack`.
-- Transitions: `auto`, `fade`, `dissolve`, `slide_left`, `slide_right`, `zoom_cut`, `hold`.
+- Video clips as single `file` media items (`.mp4`, `.mov`, `.m4v`); clips are trimmed to `min(script duration, real clip duration)`.
+- Multi-photo layouts through image-only `files`: `video_wall`, `grid_2x2`, `mosaic`, `split_two`, `photo_stack`.
+- Transitions: `auto`, `fade`, `dissolve`, approximate `slide_left`, `slide_right`, `zoom_cut`, `hold`.
 - Beat pauses: `pause_after`.
 
 ## Suno prompts

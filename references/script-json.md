@@ -66,6 +66,8 @@ Legacy title card is also valid:
 {"type": "titlecard", "text": "我們畢業了", "duration": 3}
 ```
 
+`background_file` must be an image file (`.jpg`, `.jpeg`, `.png`, `.heic`). Do not use video files as title-card backgrounds in the baseline renderer.
+
 ## Photo or video item
 
 ```json
@@ -89,9 +91,11 @@ For videos, use `layout: "letterbox_video"` for vertical or non-16:9 clips and `
 
 Each media item is also the photo-to-script mapping unit. When showing the script preview, list each `file` or `files` group beside its narration/subtitle, duration, layout, motion, and transition so the user can approve which photo matches which sentence.
 
+Video clips are supported as single media items with `file`, for example `{"file": "clip.mp4", "layout": "letterbox_video", "duration": 8}`. The baseline renderer trims the clip to `min(script duration, real clip duration)`.
+
 ## Multi-photo layouts
 
-Use `files` instead of `file` when one beat should show several photos together.
+Use `files` instead of `file` when one beat should show several photos together. `files` is image-only; do not put `.mp4`, `.mov`, or `.m4v` inside `files`.
 
 ```json
 {
