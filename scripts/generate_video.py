@@ -66,7 +66,23 @@ def ensure_render_dependencies() -> None:
 
 
 def load_font(font_path: str | None, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    candidates = [font_path, "C:/Windows/Fonts/msjh.ttc", "C:/Windows/Fonts/mingliu.ttc"]
+    candidates = [
+        font_path,
+        # Windows CJK fonts
+        "C:/Windows/Fonts/msjh.ttc",
+        "C:/Windows/Fonts/msjhbd.ttc",
+        "C:/Windows/Fonts/mingliu.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        # macOS CJK fonts
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        # Linux / Noto CJK fonts
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/arphic/uming.ttc",
+    ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return ImageFont.truetype(candidate, size)
@@ -444,7 +460,10 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                     video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")
                     return
                 except ImportError as exc:
-                    raise SystemExit("voice mode requires edge-tts. Install it or use subtitle-only mode.") from exc
+                    raise SystemExit(
+                        "voice mode requires the edge-tts Python package and internet access to Microsoft's online TTS service. "
+                        "Install edge-tts in the local environment or use subtitle-only mode."
+                    ) from exc
     if audio_clips:
         video = video.set_audio(CompositeAudioClip(audio_clips))
     video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")

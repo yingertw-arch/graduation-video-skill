@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,7 @@ ALLOWED = {
     "sound_cue": {"soft_hit", "soft_whoosh", "beat_hit", "camera_click", "none"},
 }
 SUPPORTED_MEDIA = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".m4v"}
+VIDEO_MEDIA = {".mp4", ".mov", ".m4v"}
 
 
 class Reporter:
@@ -85,7 +88,44 @@ def media_file(r: Reporter, where: str, value: Any, media_root: Path, field: str
         r.error(f"{where}.{field} is not a file: {full}")
 
 
-def validate(data: dict[str, Any], media_root: Path, target_duration: float | None = None) -> Reporter:
+def resolve_media_path(value: Any, media_root: Path) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    p = Path(value)
+    return p if p.is_absolute() else media_root / p
+
+
+def ffprobe_duration(path: Path) -> float | None:
+    if shutil.which("ffprobe") is None:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15,
+        )
+        return float(result.stdout.strip())
+    except Exception:
+        return None
+
+
+def validate(
+    data: dict[str, Any],
+    media_root: Path,
+    target_duration: float | None = None,
+    probe_video_durations: bool = False,
+) -> Reporter:
     r = Reporter()
     for key in ("title", "mode", "output", "width", "height", "scenes"):
         if key not in data:
@@ -203,6 +243,20 @@ def validate(data: dict[str, Any], media_root: Path, target_duration: float | No
                 if item.get("sound_cue") not in (None, "none"):
                     cue_count += 1
                 dur = item.get("duration", data.get("duration_per_image", 5))
+                if probe_video_durations and files is None:
+                    media_path = resolve_media_path(item.get("file"), media_root)
+                    if media_path and media_path.suffix.lower() in VIDEO_MEDIA and media_path.exists():
+                        real_duration = ffprobe_duration(media_path)
+                        if real_duration is not None and isinstance(dur, (int, float)):
+                            adjusted = min(float(dur), real_duration)
+                            if adjusted != float(dur):
+                                r.warn(
+                                    f"{ip} estimated duration adjusted from {float(dur):.1f}s to "
+                                    f"{adjusted:.1f}s because actual video is {real_duration:.1f}s."
+                                )
+                            dur = adjusted
+                        elif real_duration is None:
+                            r.warn(f"{ip} video duration could not be probed; using script duration metadata.")
 
             if not isinstance(dur, (int, float)) or dur <= 0:
                 r.error(f"{ip}.duration must be a positive number when present.")
@@ -221,7 +275,8 @@ def validate(data: dict[str, Any], media_root: Path, target_duration: float | No
     if cue_count > max(8, estimated / 15):
         r.warn("Many sound cues requested; consider using cues more sparingly.")
     if estimated:
-        r.warn(f"Estimated duration from metadata: {estimated:.1f} seconds.")
+        label = "metadata + probed video durations" if probe_video_durations else "metadata"
+        r.warn(f"Estimated duration from {label}: {estimated:.1f} seconds.")
     if target_duration and estimated:
         low, high = target_duration * 0.85, target_duration * 1.15
         if not (low <= estimated <= high):
@@ -234,6 +289,11 @@ def main() -> int:
     parser.add_argument("script", type=Path)
     parser.add_argument("--media-root", type=Path)
     parser.add_argument("--target-duration", type=float)
+    parser.add_argument(
+        "--probe-video-durations",
+        action="store_true",
+        help="Use ffprobe when available to estimate rendered video clips as min(script duration, real clip duration).",
+    )
     args = parser.parse_args()
 
     script_path = args.script.resolve()
@@ -249,7 +309,7 @@ def main() -> int:
     if not isinstance(data, dict):
         print("ERROR: top-level JSON value must be an object.")
         return 2
-    reporter = validate(data, media_root, args.target_duration)
+    reporter = validate(data, media_root, args.target_duration, args.probe_video_durations)
     reporter.show()
     return 1 if reporter.errors else 0
 

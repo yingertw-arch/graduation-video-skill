@@ -15,7 +15,7 @@ Required: `title`, `mode`, `output`, `width`, `height`, `scenes`.
   "width": 1920,
   "height": 1080,
   "fps": 24,
-  "font": "C:/Windows/Fonts/msjh.ttc",
+  "font": null,
   "font_size": 42,
   "duration_per_image": 5,
   "visual_profile": "warm_cinematic",
@@ -145,3 +145,4 @@ Use `motion: "auto"` and `transition: "auto"` when the renderer should infer eff
 - Peak scenes: 2.5-4 seconds per image.
 - Reflection scenes: 5-7 seconds per image.
 - Keep estimated total within 15% of target duration.
+- For video clips, validator can use `--probe-video-durations` to estimate actual rendered duration as `min(script duration, real clip duration)` when `ffprobe` is available.

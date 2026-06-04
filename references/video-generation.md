@@ -15,6 +15,8 @@ Optional for voice mode:
 python -c "import edge_tts; print('edge_tts ok')"
 ```
 
+`edge-tts` uses Microsoft's online TTS service through the Python package. It requires the package and internet access, but not the Edge browser. If it is unavailable, switch to `subtitle-only`.
+
 If packages are missing, ask before installing. Prefer a local virtual environment:
 
 ```powershell
@@ -43,7 +45,7 @@ python scripts\inventory_media.py "C:\path\to\materials" --output "C:\path\to\ma
 ## Validate
 
 ```powershell
-python scripts\validate_script.py "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --target-duration 120
+python scripts\validate_script.py "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --target-duration 120 --probe-video-durations
 ```
 
 ## Automated final generation
@@ -74,7 +76,7 @@ With BGM:
 python scripts\generate_video.py --script "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --bgm "C:\path\to\music.mp3"
 ```
 
-Voice mode requires `edge-tts`; if unavailable, render subtitle-only or ask to install it.
+Voice mode requires the `edge-tts` Python package and internet access to Microsoft's online TTS service; it does not require the Edge browser. If unavailable, render subtitle-only or ask before installing it.
 
 The baseline renderer supports:
 
