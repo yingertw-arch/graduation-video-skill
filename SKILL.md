@@ -1,11 +1,11 @@
 ---
 name: graduation-video
-description: Create polished school montage videos from photo and video folders for graduation ceremonies, teaching records, achievement showcases, school anniversaries, field trips, class events, and ceremony playback. Use when the user asks to make a graduation video, teaching-record video, school activity video, class event montage, 學校活動影片, 畢業影片, 教學紀錄影片, 成果發表影片, 校慶影片, 校外教學影片, 班級回憶影片, or a narrated/subtitled MP4 from school photos and clips. Includes media inventory, script planning, privacy checks, narration/subtitles, BGM guidance, validation, rendering, and QA. Do not trigger for unrelated generic video editing unless it is clearly a school or class activity montage.
+description: Create polished school montage videos from photo and video folders for graduation ceremonies, teaching records, achievement showcases, school anniversaries, field trips, class events, and ceremony playback. Use when the user asks to make a graduation video, teaching-record video, school activity video, class event montage, school photo/video montage, 學校活動影片, 畢業影片, 教學紀錄影片, 成果發表影片, 校慶影片, 校外教學影片, 班級回憶影片, or a narrated/subtitled MP4 from school photos and clips. Includes media inventory, photo-to-script mapping, Suno prompt generation from the approved script, privacy checks, narration/subtitles, BGM/MP3 review, automated validation, automated rendering, and QA. Do not trigger for unrelated generic video editing unless it is clearly a school or class activity montage.
 ---
 
 # Graduation Video
 
-Create a school-event MP4 from a folder of photos/videos. First inventory the material, then draft a `script.json`, get approval, validate, render, and QA the output.
+Create a school-event MP4 from a folder of photos/videos. First inventory the material, map photos to script lines, draft a `script.json`, get approvals, generate/adapt a Suno prompt when needed, then automatically validate, render, and QA the output after the user says to start final generation.
 
 ## First response
 
@@ -22,17 +22,37 @@ If any required input is missing, ask for all missing items at once before inven
 
 If enough information is already present, restate the chosen folder, title, duration, output mode, music, tone, and ambition before proceeding. Never assume the current workspace is the material folder.
 
-## Required approval gate
+## Required approval gates
 
-Before final rendering, always show a concise script preview and wait for explicit confirmation. This is mandatory for teaching-record videos because the narration and privacy choices must be teacher-approved.
+Before final rendering, always show a concise preview and wait for explicit confirmation. This is mandatory for teaching-record videos because the narration and privacy choices must be teacher-approved.
 
 Preview should include:
 
 - Scene table: scene name, story role, media count, rhythm, estimated duration, sample narration.
 - Actual title-card and narration/subtitle text.
+- A photo-to-script mapping table: media filename(s), scene, narration/subtitle sentence, duration, layout, motion, transition.
 - Skipped/problem files and privacy warnings.
+- Music plan: Suno prompt or selected MP3/BGM path, tone, tempo, and rights reminder.
+
+Do not render until all required approvals are complete:
+
+1. **Photo/material approval**: usable media list, skipped/problem files, and privacy warnings are accepted.
+2. **Script approval**: title cards, narration/subtitles, scene order, and photo-to-script mapping are accepted.
+3. **Music approval**: Suno prompt is accepted before generating music, and the final MP3/BGM file is provided and accepted before rendering.
 
 Save `script.json` before approval only if the user asks for a draft file.
+
+## Fully automated final generation
+
+After the approvals above are complete, when the user says "start generating", "開始生成影片", "產出影片", or similar, do not ask the user to run commands manually. Codex must automatically:
+
+1. Locate the approved `script.json`, material folder, and approved MP3/BGM file when one is required.
+2. Confirm files exist without asking for manual checks.
+3. Run `scripts/validate_script.py` with `--media-root` and target duration.
+4. If validation has errors, fix the script or report the specific blocker. Do not render with errors.
+5. Run `scripts/generate_video.py` with `--script`, `--media-root`, and `--bgm` when music is approved.
+6. Run QA checks automatically when tools are available: file existence/size, `ffprobe`, and optional frame extraction with `ffmpeg`.
+7. Report only the final MP4 path, duration/resolution/audio findings, warnings, and next polish suggestions.
 
 ## Workflow
 
@@ -45,6 +65,7 @@ Save `script.json` before approval only if the user asks for a draft file.
 2. **Plan story**
    - Use a 5-part arc: hook, setup, peak, turn, echo.
    - Prefer fewer strong images over using everything.
+   - Build a photo-to-script mapping: each media item or `files` group must map to a specific narration/subtitle sentence or intentional silent beat.
    - Avoid naming students unless names are provided and safe.
    - Do not include private details from screenshots, IDs, grades, medical records, forms, addresses, or phone numbers.
 
@@ -61,30 +82,37 @@ Save `script.json` before approval only if the user asks for a draft file.
 
 4. **Create `script.json`**
    - Follow `references/script-json.md`.
-   - Use relative filenames in `media.file` and title-card `background_file`.
+   - Use relative filenames in `media.file`, `media.files`, and title-card `background_file`.
+   - Keep `media.file`/`media.files` aligned with the approved photo-to-script mapping.
    - Match total duration within 15% of the requested target unless the user approves otherwise.
    - In `subtitle-only`, set durations explicitly.
 
-5. **Validate**
+5. **Generate Suno prompt when requested**
+   - Generate the Suno prompt from the approved script's story arc, emotional curve, target duration, tone, and public-playback context.
+   - Include whether the music should be instrumental or vocal, language if vocal, mood, instrumentation, BPM range, and "no copyrighted melody".
+   - Wait for prompt approval before the user creates/provides the Suno MP3.
+
+6. **Validate**
    - Run: `python scripts/validate_script.py <script.json> --media-root <folder> --target-duration <seconds>`.
    - Fix all errors. Warnings may remain only if explained.
 
-6. **Render**
+7. **Render**
    - Use bundled `scripts/generate_video.py` for a deterministic baseline renderer.
    - The baseline renderer supports automatic image-based motion selection, slow zoom/pan, video-wall/grid/mosaic still layouts, fade/dissolve/slide-like transitions, and short pauses.
+   - Once final approvals are complete, execute rendering automatically; do not hand the command to the user unless blocked by permissions or missing dependencies.
    - If the user has a more advanced renderer, use it instead after confirming its path.
    - Do not install missing packages globally without approval; prefer a local virtual environment.
 
-7. **Music and rights**
+8. **Music and rights**
    - If using an existing music file, confirm it exists.
    - For public playback or upload, remind the user to use music they are allowed to publish.
-   - If the user wants generated music, adapt a prompt from `references/video-generation.md`.
+   - If the user wants generated music, adapt a prompt from `references/video-generation.md` based on the approved script, then wait for the final MP3 before rendering.
 
-8. **QA the MP4**
+9. **QA the MP4**
    - Confirm file exists and size is plausible.
-   - Use `ffprobe` if available to check duration, resolution, FPS, and audio streams.
-   - Extract a few frames if possible and inspect title cards, cropping, subtitles, and chapter markers.
-   - Report output path, duration, warnings, and suggested polish.
+   - Use `ffprobe` when available to check duration, resolution, FPS, and audio streams.
+   - Extract a few frames when possible and inspect title cards, cropping, subtitles, transitions, and chapter markers.
+   - Report output path, duration, warnings, and next suggested polish.
 
 ## Defaults
 

@@ -46,6 +46,20 @@ python scripts\inventory_media.py "C:\path\to\materials" --output "C:\path\to\ma
 python scripts\validate_script.py "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --target-duration 120
 ```
 
+## Automated final generation
+
+After photo/material approval, script approval, and MP3/BGM approval are complete, Codex should run the final generation commands itself. Do not tell the user to copy/paste commands unless execution is blocked by permissions, missing dependencies, or missing files.
+
+Required automatic sequence:
+
+1. Verify the approved `script.json` exists.
+2. Verify the material folder exists.
+3. Verify the approved MP3/BGM exists when music is part of the plan.
+4. Run validation.
+5. Stop and fix/report if validation has errors.
+6. Run the renderer.
+7. Run QA checks when `ffprobe`/`ffmpeg` are available.
+
 ## Render with bundled baseline renderer
 
 Subtitle-only:
@@ -72,6 +86,16 @@ The baseline renderer supports:
 
 ## Suno prompts
 
+Create Suno prompts from the approved script, not just the video type. Use the script's story arc, emotional curve, target duration, tone, and final use case. Include:
+
+- instrumental or vocal
+- language if vocal
+- mood and emotional arc
+- instrumentation
+- BPM range
+- "no copyrighted melody"
+- public school playback/upload suitability
+
 Graduation instrumental:
 
 ```text
@@ -94,6 +118,12 @@ Ceremony:
 
 ```text
 Grand warm school ceremony music, piano, strings and soft percussion, dignified, hopeful and celebratory, no vocals, BPM 82
+```
+
+Example customized prompt:
+
+```text
+Instrumental background music for a 3-minute elementary school graduation montage. Warm nostalgic opening, brighter hopeful middle, emotional but uplifting ending. Piano, gentle strings, light percussion, BPM 72-82, suitable for public school ceremony playback, no vocals, no copyrighted melody.
 ```
 
 ## QA

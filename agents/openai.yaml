@@ -1,3 +1,3 @@
 display_name: Graduation Video
 short_description: Turn school photos and clips into narrated MP4 montage videos.
-default_prompt: Use this skill to create a graduation, teaching-record, achievement, anniversary, field-trip, or class activity video from a media folder. Inventory media, draft and approve a script, validate it, render an MP4, and run QA.
+default_prompt: Use this skill to create a graduation, teaching-record, achievement, anniversary, field-trip, or class activity video from a media folder. Inventory media, map photos to script lines, approve script and music, then automatically validate, render, and QA the MP4.

@@ -87,6 +87,8 @@ Legacy title card is also valid:
 
 For videos, use `layout: "letterbox_video"` for vertical or non-16:9 clips and `style: "none"` unless the renderer supports video filters.
 
+Each media item is also the photo-to-script mapping unit. When showing the script preview, list each `file` or `files` group beside its narration/subtitle, duration, layout, motion, and transition so the user can approve which photo matches which sentence.
+
 ## Multi-photo layouts
 
 Use `files` instead of `file` when one beat should show several photos together.
