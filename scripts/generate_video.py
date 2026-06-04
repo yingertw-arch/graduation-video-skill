@@ -455,10 +455,6 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                     asyncio.run(edge_tts_to_file(narration, data.get("voice", "zh-TW-HsiaoChenNeural"), tts_path))
                     tts_clip = AudioFileClip(str(tts_path)).volumex(float(audio_settings.get("tts_volume", 1.0)))
                     audio_clips.append(tts_clip.subclip(0, min(video.duration, tts_clip.duration)))
-                    if audio_clips:
-                        video = video.set_audio(CompositeAudioClip(audio_clips))
-                    video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")
-                    return
                 except ImportError as exc:
                     raise SystemExit(
                         "voice mode requires the edge-tts Python package and internet access to Microsoft's online TTS service. "
