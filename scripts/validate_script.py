@@ -171,6 +171,7 @@ def validate(
         return r
 
     seen_ids: set[Any] = set()
+    used_media: dict[str, str] = {}
     estimated = 0.0
     media_count = 0
     title_count = 0
@@ -238,8 +239,19 @@ def validate(
                             r.warn(f"{ip}.files has many images; video_wall/mosaic works best with 2-6 files.")
                         for fi, file_value in enumerate(files):
                             media_file(r, f"{ip}.files[{fi}]", file_value, media_root, "file", IMAGE_MEDIA)
+                            if isinstance(file_value, str):
+                                previous = used_media.get(file_value)
+                                if previous and not item.get("allow_repeat"):
+                                    r.warn(f"{ip}.files[{fi}] repeats {file_value!r} already used at {previous}; replace duplicates before final render unless intentional.")
+                                used_media.setdefault(file_value, f"{ip}.files[{fi}]")
                 else:
-                    media_file(r, ip, item.get("file"), media_root)
+                    file_value = item.get("file")
+                    media_file(r, ip, file_value, media_root)
+                    if isinstance(file_value, str):
+                        previous = used_media.get(file_value)
+                        if previous and not item.get("allow_repeat"):
+                            r.warn(f"{ip}.file repeats {file_value!r} already used at {previous}; replace duplicates before final render unless intentional.")
+                        used_media.setdefault(file_value, f"{ip}.file")
                 if data.get("mode") == "voice" and not str(item.get("narration") or "").strip():
                     r.warn(f"{ip}.narration is empty in voice mode.")
                 allowed(r, f"{ip}.effect", item.get("effect"), "effect")

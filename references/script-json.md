@@ -21,6 +21,7 @@ Required: `title`, `mode`, `output`, `width`, `height`, `scenes`.
   "visual_profile": "warm_cinematic",
   "safe_area": {"subtitle_bottom": 120, "title_margin": 160},
   "audio": {"bgm_volume": 0.25, "tts_volume": 1.0, "bgm_fadeout": 3, "sound_cues": false},
+  "render": {"preset": "veryfast", "crf": 23, "threads": 0, "transition_duration": 0.35},
   "scenes": []
 }
 ```
@@ -93,6 +94,8 @@ Legacy title card is also valid:
 }
 ```
 
+Set `allow_repeat: true` only when a repeated photo is intentional. The validator warns when the same media file appears more than once.
+
 For videos, use `layout: "letterbox_video"` for vertical or non-16:9 clips and `style: "none"` unless the renderer supports video filters.
 
 Each media item is also the photo-to-script mapping unit. When showing the script preview, list each `file` or `files` group beside its narration/subtitle, duration, layout, motion, and transition so the user can approve which photo matches which sentence.
@@ -131,6 +134,7 @@ Use `motion: "auto"` and `transition: "auto"` when the renderer should infer eff
 - `lively_fast` scene: slide/zoom-cut style transitions.
 - `emotional_pause` scene: fade transition and slower motion.
 - `pause_after`: short beat pause, usually `0.2`-`0.8` seconds.
+- Keep default `transition_duration` around `0.25`-`0.45`; longer overlaps can feel muddy and make rendering slower.
 
 ## Allowed values
 

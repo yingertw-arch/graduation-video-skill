@@ -7,6 +7,7 @@ Outputs JSON with supported, unsupported, warning, and privacy-risk findings.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import re
@@ -70,9 +71,42 @@ def image_info(path: Path) -> dict[str, Any]:
                 "aspect_ratio": round(ratio, 3),
                 "orientation": "landscape" if ratio > 1.2 else "portrait" if ratio < 0.9 else "square",
                 "suggested_motion": suggested_motion,
+                "quality_warnings": image_quality_warnings(img.width, img.height, ratio),
+                "visual_hash": average_hash(img),
+                "visual_mean": average_brightness(img),
             }
     except Exception as exc:
         return {"image_error": str(exc)}
+
+
+
+def average_hash(img: Any, size: int = 8) -> str:
+    gray = img.convert("L").resize((size, size))
+    data = gray.get_flattened_data() if hasattr(gray, "get_flattened_data") else gray.getdata()
+    pixels = list(data)
+    avg = sum(pixels) / len(pixels)
+    bits = ["1" if p >= avg else "0" for p in pixels]
+    return "".join(f"{int(''.join(bits[i:i+4]), 2):x}" for i in range(0, len(bits), 4))
+
+
+def average_brightness(img: Any) -> float:
+    gray = img.convert("L").resize((8, 8))
+    data = gray.get_flattened_data() if hasattr(gray, "get_flattened_data") else gray.getdata()
+    pixels = list(data)
+    return round(sum(pixels) / len(pixels), 2)
+
+
+def hamming(a: str, b: str) -> int:
+    return sum(x != y for x, y in zip(a, b)) + abs(len(a) - len(b))
+
+
+def image_quality_warnings(width: int, height: int, ratio: float) -> list[str]:
+    warnings: list[str] = []
+    if width < 1280 or height < 720:
+        warnings.append("low resolution for 1080p output")
+    if ratio < 0.45 or ratio > 2.4:
+        warnings.append("extreme aspect ratio; may crop poorly")
+    return warnings
 
 
 def scan(root: Path) -> dict[str, Any]:
@@ -81,6 +115,8 @@ def scan(root: Path) -> dict[str, Any]:
     warnings: list[str] = []
     privacy: list[str] = []
     hashes: dict[str, str] = {}
+    visual_hashes: list[tuple[str, str, float]] = []
+    duplicate_groups: list[list[str]] = []
 
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
         rel = path.relative_to(root).as_posix()
@@ -102,6 +138,7 @@ def scan(root: Path) -> dict[str, Any]:
             "warnings": [],
         }
         item.update(image_info(path))
+        item["review_status"] = "candidate"
 
         if stat.st_size == 0:
             item["warnings"].append("empty file")
@@ -118,10 +155,33 @@ def scan(root: Path) -> dict[str, Any]:
             digest = file_hash_prefix(path)
             if digest in hashes:
                 item["warnings"].append(f"possible duplicate of {hashes[digest]}")
+                item["review_status"] = "skip_duplicate"
+                duplicate_groups.append([hashes[digest], rel])
             else:
                 hashes[digest] = rel
         except Exception as exc:
             item["warnings"].append(f"could not hash file: {exc}")
+
+        visual_hash = item.get("visual_hash")
+        if isinstance(visual_hash, str):
+            visual_mean = float(item.get("visual_mean") or 0)
+            if item["review_status"] != "skip_duplicate":
+                for previous_hash, previous_file, previous_mean in visual_hashes:
+                    if hamming(visual_hash, previous_hash) <= 5 and abs(visual_mean - previous_mean) <= 25:
+                        item["warnings"].append(f"visually similar to {previous_file}")
+                        item["review_status"] = "review_duplicate"
+                        duplicate_groups.append([previous_file, rel])
+                        break
+            visual_hashes.append((visual_hash, rel, visual_mean))
+
+        quality_warnings = item.get("quality_warnings") or []
+        if quality_warnings:
+            item["warnings"].extend(quality_warnings)
+            if item["review_status"] == "candidate":
+                item["review_status"] = "review_quality"
+        if item.get("image_error"):
+            item["warnings"].append(f"image could not be read: {item['image_error']}")
+            item["review_status"] = "skip_unreadable"
 
         if item["warnings"]:
             warnings.append(rel)
@@ -137,13 +197,36 @@ def scan(root: Path) -> dict[str, Any]:
         "unsupported": unsupported,
         "warning_files": warnings,
         "privacy_risk_files": sorted(set(privacy)),
+        "duplicate_groups": duplicate_groups,
     }
+
+
+def write_review_csv(data: dict[str, Any], output: Path) -> None:
+    fields = [
+        "review_status",
+        "file",
+        "extension",
+        "width",
+        "height",
+        "orientation",
+        "size_bytes",
+        "taken_at",
+        "warnings",
+    ]
+    with output.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for item in data["items"]:
+            row = {field: item.get(field, "") for field in fields}
+            row["warnings"] = "; ".join(item.get("warnings") or [])
+            writer.writerow(row)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("folder", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--review-csv", type=Path, help="Write a teacher-proofing CSV with candidate/skip/review status.")
     args = parser.parse_args()
 
     root = args.folder.resolve()
@@ -158,6 +241,9 @@ def main() -> int:
         print(f"Wrote {args.output}")
     else:
         print(text)
+    if args.review_csv:
+        write_review_csv(data, args.review_csv)
+        print(f"Wrote {args.review_csv}")
     return 0
 
 

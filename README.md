@@ -91,7 +91,7 @@ The MP4 is written next to the script (or use `--output`).
 
 1. **Inventory** the folder (sorts by date, flags tiny/duplicate/privacy-risk files):
    ```bash
-   python scripts/inventory_media.py materials --output materials/media_inventory.json
+   python scripts/inventory_media.py materials --output materials/media_inventory.json --review-csv materials/media_review.csv
    ```
 2. **Plan & write** `script.json` — see [`references/script-json.md`](references/script-json.md)
    for the schema and [`references/pro-design.md`](references/pro-design.md) for visual presets.
@@ -104,6 +104,8 @@ The MP4 is written next to the script (or use `--output`).
    then drop the MP3 into the materials folder.
 5. **Render**:
    ```bash
+   python scripts/generate_video.py --draft --script materials/script.json --media-root materials --bgm materials/music.mp3 --output materials/draft.mp4
+   # After proofreading/approval:
    python scripts/generate_video.py --script materials/script.json --media-root materials --bgm materials/music.mp3
    ```
 6. **QA** the result:
@@ -149,7 +151,9 @@ Set `audio.bgm_fadeout` to `0` (the MV default) to let the song finish cleanly. 
 - The bundled renderer is a **deterministic baseline**. It supports title cards,
   per-photo Ken Burns motion, multi-photo layouts (video_wall / grid_2x2 / mosaic /
   split_two / photo_stack), basic transitions, beat pauses, BGM, and per-clip TTS.
-  Some decorative schema fields are accepted by the validator but not yet rendered.
+  Photo `style` filters are rendered for stills and multi-photo layouts; transition effects are intentionally restrained for smoother playback. Some advanced decorative schema fields are still accepted by the validator but may be approximated by the baseline renderer.
+- Use `--draft` for a much faster 960x540/15fps proofreading MP4 before committing to full 1080p output.
+- `inventory_media.py --review-csv` creates a teacher-proofing CSV that flags exact/visual duplicates, low-resolution images, awkward aspect ratios, unreadable files, and privacy-risk filenames.
 - For public playback, use background music you are allowed to publish.
 - Protect student privacy: avoid IDs, grades, addresses, phone numbers, and medical
   details in narration and on-screen text.

@@ -62,13 +62,13 @@ sudo apt-get update && sudo apt-get install -y ffmpeg
 ## Inventory
 
 ```powershell
-python scripts\inventory_media.py "C:\path\to\materials" --output "C:\path\to\materials\media_inventory.json"
+python scripts\inventory_media.py "C:\path\to\materials" --output "C:\path\to\materials\media_inventory.json" --review-csv "C:\path\to\materials\media_review.csv"
 ```
 
 macOS/Linux:
 
 ```bash
-python scripts/inventory_media.py "/path/to/materials" --output "/path/to/materials/media_inventory.json"
+python scripts/inventory_media.py "/path/to/materials" --output "/path/to/materials/media_inventory.json" --review-csv "/path/to/materials/media_review.csv"
 ```
 
 ## Validate
@@ -96,6 +96,20 @@ Required automatic sequence:
 5. Stop and fix/report if validation has errors.
 6. Run the renderer.
 7. Run QA checks when `ffprobe`/`ffmpeg` are available.
+
+## Draft proofing render
+
+Use a fast draft before the final MP4 so repeated photos, unsuitable photos, awkward transitions, subtitle placement, and pacing can be corrected without waiting for a full 1080p render.
+
+```powershell
+python scripts\generate_video.py --draft --script "C:\path\to\materials\script.json" --media-root "C:\path\to\materials" --output "C:\path\to\materials\draft.mp4"
+```
+
+macOS/Linux:
+
+```bash
+python scripts/generate_video.py --draft --script "/path/to/materials/script.json" --media-root "/path/to/materials" --output "/path/to/materials/draft.mp4"
+```
 
 ## Render with bundled baseline renderer
 
@@ -128,6 +142,8 @@ The baseline renderer supports:
 - Multi-photo layouts through image-only `files`: `video_wall`, `grid_2x2`, `mosaic`, `split_two`, `photo_stack`.
 - Transitions: `auto`, `fade`, `dissolve`, approximate `slide_left`, `slide_right`, `zoom_cut`, `hold`.
 - Beat pauses: `pause_after`.
+- Still-photo filters: `style` values `none`, `vibrant`, `vintage`, `sepia`, `film`, `bw`.
+- Faster output controls through top-level `render`: `preset`, `crf`, `threads`, `transition_duration`.
 
 ## Suno prompts
 
@@ -203,4 +219,4 @@ ffprobe -v error -show_entries format=duration -show_streams "output.mp4"
 ffmpeg -y -i "output.mp4" -vf "fps=1/30" "qa_frame_%03d.jpg"
 ```
 
-Check: file size, resolution, duration, audio stream, subtitle placement, title-card fit, cropping, BGM balance, and whether privacy-sensitive material appears.
+Check: file size, resolution, duration, audio stream, subtitle placement, title-card fit, cropping, duplicate/repeated photos, unsuitable photos, transition smoothness, filter consistency, BGM balance, and whether privacy-sensitive material appears.

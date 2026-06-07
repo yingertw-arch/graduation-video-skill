@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,8 @@ def ensure_render_dependencies() -> None:
         ) from exc
 
     np = _np
+    if not hasattr(_Image, "ANTIALIAS"):
+        _Image.ANTIALIAS = _Image.Resampling.LANCZOS
     Image, ImageDraw, ImageFilter, ImageFont = _Image, _ImageDraw, _ImageFilter, _ImageFont
     AudioFileClip, ColorClip, CompositeAudioClip, CompositeVideoClip = _AudioFileClip, _ColorClip, _CompositeAudioClip, _CompositeVideoClip
     ImageClip, VideoClip, VideoFileClip, concatenate_videoclips = _ImageClip, _VideoClip, _VideoFileClip, _concatenate_videoclips
@@ -187,6 +190,33 @@ def crop_frame(resized: Image.Image, width: int, height: int, x_ratio: float, y_
     return resized.crop((x, y, x + width, y + height))
 
 
+def apply_photo_style(img: Image.Image, style: str | None) -> Image.Image:
+    style = style or "none"
+    if style == "none":
+        return img
+    if style == "bw":
+        return img.convert("L").convert("RGB")
+    if style == "sepia":
+        gray = img.convert("L")
+        sepia = Image.new("RGB", img.size)
+        sepia.putdata([(min(255, int(v * 1.12)), min(255, int(v * 0.92)), min(255, int(v * 0.62))) for v in gray.getdata()])
+        return sepia
+    from PIL import ImageEnhance
+
+    if style == "vibrant":
+        img = ImageEnhance.Color(img).enhance(1.18)
+        return ImageEnhance.Contrast(img).enhance(1.06)
+    if style == "vintage":
+        warm = Image.new("RGB", img.size, (244, 226, 190))
+        img = Image.blend(img, warm, 0.12)
+        return ImageEnhance.Contrast(img).enhance(0.92)
+    if style == "film":
+        img = ImageEnhance.Color(img).enhance(1.08)
+        img = ImageEnhance.Contrast(img).enhance(1.14)
+        return ImageEnhance.Sharpness(img).enhance(1.08)
+    return img
+
+
 def infer_motion(path: Path, item: dict[str, Any], scene: dict[str, Any] | None = None) -> str:
     requested = item.get("motion") or item.get("effect")
     if requested and requested not in {"none", "auto"}:
@@ -214,19 +244,44 @@ def infer_transition(item: dict[str, Any], scene: dict[str, Any] | None = None, 
         return requested
     rhythm = (scene or {}).get("rhythm", "")
     if rhythm == "lively_fast":
-        return "slide_left" if index % 2 == 0 else "zoom_cut"
+        return "slide_left" if index % 4 == 0 else "dissolve"
     if rhythm == "cinematic_peak":
-        return "zoom_cut"
+        return "zoom_cut" if index % 3 == 0 else "dissolve"
     if rhythm == "emotional_pause":
         return "fade"
     return "dissolve"
 
 
-def make_motion_photo_clip(path: Path, width: int, height: int, duration: float, motion: str) -> VideoClip:
-    src = Image.open(path).convert("RGB")
+def make_motion_photo_clip(path: Path, width: int, height: int, duration: float, motion: str, style: str | None = None) -> VideoClip:
+    src = apply_photo_style(Image.open(path).convert("RGB"), style)
+    target_ratio = width / max(1, height)
+    src_ratio = src.width / max(1, src.height)
+    portrait_fit = src_ratio < target_ratio * 0.78
+    if portrait_fit:
+        bg = cover_image(src, width, height, 0.08)
+        bg = crop_frame(bg, width, height, 0.5, 0.5).filter(ImageFilter.GaussianBlur(18))
+        bg = Image.blend(bg, Image.new("RGB", (width, height), (18, 20, 24)), 0.22)
 
     def frame(t: float):
         p = 0 if duration <= 0 else min(1, max(0, t / duration))
+        if portrait_fit:
+            scale = min(width * 0.72 / src.width, height * 0.92 / src.height)
+            if motion == "slow_pull_back":
+                scale *= 1.03 - 0.03 * p
+            elif motion in {"slow_push_in", "auto", "parallax_soft", "handheld_soft"}:
+                scale *= 1.0 + 0.035 * p
+            fitted = src.resize((max(1, int(src.width * scale)), max(1, int(src.height * scale))), Image.LANCZOS)
+            frame_img = bg.copy().convert("RGBA")
+            shadow = Image.new("RGBA", (fitted.width + 28, fitted.height + 28), (0, 0, 0, 0))
+            ImageDraw.Draw(shadow).rounded_rectangle(
+                (14, 14, fitted.width + 14, fitted.height + 14),
+                radius=16,
+                fill=(0, 0, 0, 115),
+            )
+            shadow = shadow.filter(ImageFilter.GaussianBlur(10))
+            frame_img.alpha_composite(shadow, ((width - shadow.width) // 2, (height - shadow.height) // 2))
+            frame_img.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+            return np.array(frame_img.convert("RGB"))
         if motion == "slow_pull_back":
             extra = 0.14 * (1 - p)
             x_ratio = y_ratio = 0.5
@@ -247,6 +302,16 @@ def make_motion_photo_clip(path: Path, width: int, height: int, duration: float,
 
 def image_tile(path: Path, w: int, h: int) -> Image.Image:
     img = Image.open(path).convert("RGB")
+    target_ratio = w / max(1, h)
+    src_ratio = img.width / max(1, img.height)
+    if src_ratio < target_ratio * 0.78:
+        bg = cover_image(img, w, h, 0.08)
+        bg = crop_frame(bg, w, h, 0.5, 0.5).filter(ImageFilter.GaussianBlur(14))
+        bg = Image.blend(bg, Image.new("RGB", (w, h), (18, 20, 24)), 0.24)
+        scale = min(w * 0.86 / img.width, h * 0.94 / img.height)
+        fitted = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.LANCZOS)
+        bg.paste(fitted, ((w - fitted.width) // 2, (h - fitted.height) // 2))
+        return bg
     scale = max(w / img.width, h / img.height)
     resized = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
     x = (resized.width - w) // 2
@@ -299,6 +364,7 @@ def make_layout_clip(paths: list[Path], item: dict[str, Any], settings: dict[str
     duration = float(item.get("duration", settings.get("duration_per_image", 5)))
     layout = item.get("layout") or infer_layout(paths)
     image = make_multi_photo_image(paths, width, height, layout)
+    image = apply_photo_style(image, item.get("style"))
     return ImageClip(np.array(image)).set_duration(duration)
 
 
@@ -358,7 +424,7 @@ def make_media_clip(
             duration = base.duration
         else:
             motion = infer_motion(path, item, scene)
-            base = make_motion_photo_clip(path, width, height, duration, motion)
+            base = make_motion_photo_clip(path, width, height, duration, motion, item.get("style"))
             effect = item.get("effect")
             if effect in {"fade-in", "blur-in", "pop-in"}:
                 try:
@@ -385,7 +451,7 @@ def apply_transitions(clips: list[Any], transitions: list[str], durations: list[
     processed = [clips[0]]
     for i, clip in enumerate(clips[1:], start=1):
         transition = transitions[i] if i < len(transitions) else "dissolve"
-        td = min(0.8, max(0.0, durations[i] if i < len(durations) else 0.5))
+        td = min(0.45, max(0.0, durations[i] if i < len(durations) else 0.35))
         if td > 0 and transition in {"slide_left", "whip_pan"}:
             clip = clip.set_position(lambda t, td=td, width=width: (int(width * max(0, 1 - min(1, t / td))), 0))
         elif td > 0 and transition == "slide_right":
@@ -422,6 +488,7 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
         "duration_per_image": float(data.get("duration_per_image", 5)),
         "safe_area": data.get("safe_area") or {},
     }
+    render_settings = data.get("render") or {}
     mode = data.get("mode")
     audio_settings = data.get("audio") or {}
     voice_name = data.get("voice", "zh-TW-HsiaoChenNeural")
@@ -494,7 +561,7 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                 item = rec["item"]
                 clips.append(make_titlecard(item, media_root, settings["width"], settings["height"], settings["font"], settings["font_size"]))
                 transitions.append(item.get("transition", "fade"))
-                transition_durations.append(float(item.get("transition_duration", 0.6)))
+                transition_durations.append(float(item.get("transition_duration", render_settings.get("transition_duration", 0.35))))
             elif rec["kind"] == "pause":
                 clips.append(ColorClip((settings["width"], settings["height"]), color=(0, 0, 0)).set_duration(rec["duration"]))
                 transitions.append("hold")
@@ -504,7 +571,7 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                 rec["clip_index"] = len(clips)
                 clips.append(make_media_clip(item, media_root, settings, rec["scene"], override_duration=rec.get("override_duration")))
                 transitions.append(infer_transition(item, rec["scene"], rec["media_index"]))
-                transition_durations.append(float(item.get("transition_duration", 0.6)))
+                transition_durations.append(float(item.get("transition_duration", render_settings.get("transition_duration", 0.35))))
         if not clips:
             raise SystemExit("No renderable clips found.")
 
@@ -542,7 +609,18 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
 
         if audio_clips:
             video = video.set_audio(CompositeAudioClip(audio_clips))
-        video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")
+        threads = int(render_settings.get("threads") or max(1, (os.cpu_count() or 2) - 1))
+        preset = str(render_settings.get("preset") or "veryfast")
+        ffmpeg_params = ["-crf", str(render_settings.get("crf", 23)), "-movflags", "+faststart"]
+        video.write_videofile(
+            str(output),
+            fps=settings["fps"],
+            codec="libx264",
+            audio_codec="aac",
+            preset=preset,
+            threads=threads,
+            ffmpeg_params=ffmpeg_params,
+        )
 
 
 def main() -> int:
@@ -551,11 +629,18 @@ def main() -> int:
     parser.add_argument("--media-root", type=Path)
     parser.add_argument("--bgm", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--draft", action="store_true", help="Render a faster 960x540/15fps preview for proofreading.")
     args = parser.parse_args()
 
     script_path = args.script.resolve()
     media_root = (args.media_root or script_path.parent).resolve()
     data = json.loads(script_path.read_text(encoding="utf-8-sig"))
+    if args.draft:
+        data["width"] = 960
+        data["height"] = 540
+        data["fps"] = min(int(data.get("fps", 24)), 15)
+        data.setdefault("render", {})
+        data["render"].update({"preset": "ultrafast", "crf": 28, "transition_duration": 0.25})
     output = args.output or (script_path.parent / data.get("output", "output.mp4"))
     build_video(data, media_root, args.bgm.resolve() if args.bgm else None, output.resolve())
     print(f"Wrote {output.resolve()}")

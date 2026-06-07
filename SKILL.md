@@ -42,6 +42,8 @@ Before final rendering, always show a concise preview and wait for explicit conf
 
 Preview should include:
 
+- A teacher-proofing media review list from `media_inventory.json` and `media_review.csv`, grouped into keep / duplicate / quality concern / privacy concern / unsuitable.
+- A clear duplicate-photo decision: repeated files or visually similar photos are removed unless the user explicitly marks them `allow_repeat`.
 - Scene table: scene name, story role, media count, rhythm, estimated duration, sample narration.
 - Actual title-card and narration/subtitle text.
 - A photo-to-script mapping table: media filename(s), scene, narration/subtitle sentence, duration, layout, motion, transition.
@@ -50,9 +52,10 @@ Preview should include:
 
 Do not render until all required approvals are complete:
 
-1. **Photo/material approval**: usable media list, skipped/problem files, and privacy warnings are accepted.
-2. **Script approval**: title cards, narration/subtitles, scene order, and photo-to-script mapping are accepted.
-3. **Music approval**: Suno prompt is accepted before generating music, and the final MP3/BGM file is provided and accepted before rendering.
+1. **Photo/material approval**: usable media list, duplicate removals, skipped/problem files, unsuitable-photo decisions, and privacy warnings are accepted.
+2. **Script approval**: title cards, narration/subtitles, scene order, photo-to-script mapping, transition style, and filter plan are accepted.
+3. **Draft video approval**: render a low-resolution `--draft` MP4 when practical, then correct repeated photos, unsuitable photos, awkward transitions, subtitle placement, or pacing before full output.
+4. **Music approval**: Suno prompt is accepted before generating music, and the final MP3/BGM file is provided and accepted before final rendering.
 
 Save `script.json` before approval only if the user asks for a draft file.
 
@@ -71,10 +74,11 @@ After the approvals above are complete, when the user says "start generating", "
 ## Workflow
 
 1. **Inventory material**
-   - Run `scripts/inventory_media.py <folder> --output media_inventory.json` when practical.
+   - Run `scripts/inventory_media.py <folder> --output media_inventory.json --review-csv media_review.csv` when practical.
    - Supported media: `.jpg`, `.jpeg`, `.png`, `.heic`, `.mp4`, `.mov`, `.m4v`.
    - Sort by EXIF/date taken when available, then modified time, then filename.
-   - Flag tiny, empty, unsupported, duplicate-looking, and privacy-risk filenames.
+   - Flag tiny, empty, unsupported, exact duplicates, visually similar duplicates, low-resolution images, awkward aspect ratios, unreadable files, and privacy-risk filenames.
+   - Treat duplicate and unsuitable-photo warnings as teacher-proofing blockers: remove or replace them before final render unless explicitly approved.
 
 2. **Plan story**
    - Use a 5-part arc: hook, setup, peak, turn, echo.
@@ -90,7 +94,8 @@ After the approvals above are complete, when the user says "start generating", "
    - Vary layouts: `full_bleed`, `split_two`, `photo_stack`, `scrapbook`, `film_frame`, `detail_focus`, `letterbox_video`, `video_wall`, `grid_2x2`, `mosaic`.
    - Use `files: [...]` only for multi-photo layouts such as TV-wall/video wall, grid, mosaic, or split-screen sequences; `files` must contain images only.
    - Use video clips as single `file` media items with `layout: "letterbox_video"` when needed.
-   - Give every media item a story-appropriate `transition`; use `transition: "auto"` when the renderer should choose by rhythm.
+   - Give every media item a story-appropriate `transition`; use `transition: "auto"` when the renderer should choose by rhythm. Prefer `dissolve`/`fade` for teaching records and avoid repeated strong transitions.
+   - Give photo media a restrained `style` filter only when it improves clarity or mood; keep classroom proof/documentation photos `none` or subtle `vibrant`.
    - Use `pause_after` for intentional beat pauses, emotional stops, or comma-like visual punctuation.
    - Use sound cues as story punctuation, not on every clip.
    - Read `references/pro-design.md` only when detailed presets are needed.
@@ -111,10 +116,12 @@ After the approvals above are complete, when the user says "start generating", "
    - Run: `python scripts/validate_script.py <script.json> --media-root <folder> --target-duration <seconds> --probe-video-durations` when `ffprobe` is available.
    - Fix all errors. Warnings may remain only if explained.
 
-7. **Render**
+7. **Draft and render**
+   - Before a full render, produce a fast draft preview when practical: `scripts/generate_video.py --draft ...`. Use it for proofreading repeated photos, unsuitable photos, subtitle placement, transition smoothness, and pacing.
    - Use bundled `scripts/generate_video.py` for a deterministic baseline renderer.
    - The baseline renderer supports automatic image-based motion selection, slow zoom/pan, video-wall/grid/mosaic still layouts, fade/dissolve/slide-like transitions, and short pauses.
-   - Once final approvals are complete, execute rendering automatically; do not hand the command to the user unless blocked by permissions or missing dependencies.
+   - Once draft approval and final approvals are complete, execute full rendering automatically; do not hand the command to the user unless blocked by permissions or missing dependencies.
+   - For long videos, optimize by rendering a draft first, keeping resolution/FPS modest until approval, using fewer repeated stills, grouping related photos into multi-photo layouts, and using renderer `render.preset`/`threads` settings for final output.
    - If the user has a more advanced renderer, use it instead after confirming its path.
    - Do not install missing packages globally without approval; prefer a local virtual environment.
 

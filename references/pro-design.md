@@ -44,7 +44,7 @@ Avoid using the same layout more than 3-4 times in a row unless the scene is int
 - Use `fade` for title cards and emotional pauses.
 - Use `hold` plus `pause_after` for a visual comma or beat stop.
 
-Strong transitions become cheap when repeated too often.
+Strong transitions become cheap when repeated too often. For teaching records, default to `dissolve`/`fade`; use slide or zoom transitions only at chapter changes or true highlight beats. Keep `transition_duration` around 0.25-0.45 seconds for smoother output.
 
 ## Automatic motion selection
 
@@ -58,6 +58,16 @@ Use `motion: "auto"` unless a specific move is needed. The baseline renderer inf
 
 Every still image should either specify `motion` or use `auto`.
 
+## Proofing discipline
+
+Before final rendering, remove or explicitly approve:
+
+- exact duplicate files and visually similar repeats,
+- low-resolution images that look soft at 1080p,
+- extreme portrait/panorama crops unless the renderer uses letterbox or a multi-photo layout,
+- screenshots, forms, IDs, grades, phone numbers, addresses, and medical/private records,
+- blurred, closed-eye, accidental, or unflattering photos.
+
 ## Filter discipline
 
 - `none`: teaching records, screenshots, documents, whiteboards, accurate-color images.
@@ -66,6 +76,8 @@ Every still image should either specify `motion` or use `auto`.
 - `sepia`: warm retrospective moments; use sparingly.
 - `film`: performances, sports, experiments, field trips.
 - `bw`: one serious reflective pause.
+
+The baseline renderer applies these styles to still photos. Keep filters subtle; changing filters on every photo makes transitions feel less smooth.
 
 ## Sound cue discipline
 
