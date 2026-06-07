@@ -1,0 +1,14 @@
+# Core — required to render (scripts/generate_video.py)
+moviepy==1.0.3
+pillow<10        # moviepy 1.0.3 still uses Image.ANTIALIAS, which Pillow>=10 removed
+numpy<2          # compatibility upper bound for moviepy 1.0.3
+
+# Optional — voice mode (TTS via Microsoft's online service, needs internet)
+#   pip install edge-tts
+# Optional — HEIC photo support
+#   pip install pillow-heif
+
+# Note: FFmpeg is a SYSTEM dependency, not a pip package. Install it separately:
+#   Windows: winget install Gyan.FFmpeg
+#   macOS:   brew install ffmpeg
+#   Linux:   sudo apt-get install ffmpeg

@@ -28,6 +28,10 @@ np = None
 Image = ImageDraw = ImageFilter = ImageFont = None
 AudioFileClip = ColorClip = CompositeAudioClip = CompositeVideoClip = ImageClip = VideoClip = VideoFileClip = concatenate_videoclips = None
 
+# Overlap (seconds) between consecutive clips during concatenation. Shared by the
+# renderer and the voice-mode timeline math so per-clip narration stays aligned.
+CONCAT_PADDING = -0.6
+
 
 def ensure_render_dependencies() -> None:
     """Import heavy optional packages only when rendering, not for --help."""
@@ -329,13 +333,19 @@ def subtitle_clip(text: str, duration: float, width: int, height: int, font_path
     return ImageClip(np.array(img)).set_duration(duration)
 
 
-def make_media_clip(item: dict[str, Any], media_root: Path, settings: dict[str, Any], scene: dict[str, Any] | None = None) -> CompositeVideoClip:
+def make_media_clip(
+    item: dict[str, Any],
+    media_root: Path,
+    settings: dict[str, Any],
+    scene: dict[str, Any] | None = None,
+    override_duration: float | None = None,
+) -> CompositeVideoClip:
     width, height = int(settings["width"]), int(settings["height"])
-    duration = float(item.get("duration", settings.get("duration_per_image", 5)))
+    duration = float(override_duration) if override_duration else float(item.get("duration", settings.get("duration_per_image", 5)))
     files = item.get("files")
     if isinstance(files, list) and files:
         paths = [media_root / str(f) for f in files]
-        base = make_layout_clip(paths, item, settings, scene)
+        base = make_layout_clip(paths, item, settings, scene).set_duration(duration)
     else:
         path = media_root / item["file"]
         suffix = path.suffix.lower()
@@ -388,7 +398,7 @@ def apply_transitions(clips: list[Any], transitions: list[str], durations: list[
             except Exception:
                 pass
         processed.append(clip)
-    padding = -0.6 if len(processed) > 1 else 0
+    padding = CONCAT_PADDING if len(processed) > 1 else 0
     return concatenate_videoclips(processed, method="compose", padding=padding).on_color(
         size=(width, height), color=(0, 0, 0), pos=("center", "center")
     )
@@ -399,18 +409,6 @@ async def edge_tts_to_file(text: str, voice: str, output: Path) -> None:
 
     communicate = edge_tts.Communicate(text, voice)
     await communicate.save(str(output))
-
-
-def collect_narration(data: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for scene in data.get("scenes", []):
-        for item in scene.get("media", []):
-            if item.get("type") == "titlecard":
-                continue
-            text = str(item.get("narration") or "").strip()
-            if text:
-                parts.append(text)
-    return "\n".join(parts)
 
 
 def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output: Path) -> None:
@@ -424,45 +422,44 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
         "duration_per_image": float(data.get("duration_per_image", 5)),
         "safe_area": data.get("safe_area") or {},
     }
-    clips = []
-    transitions = []
-    transition_durations = []
-    media_index = 0
-    for scene in data.get("scenes", []):
-        for item in scene.get("media", []):
-            if item.get("type") == "titlecard":
-                clips.append(make_titlecard(item, media_root, settings["width"], settings["height"], settings["font"], settings["font_size"]))
-                transitions.append(item.get("transition", "fade"))
-                transition_durations.append(float(item.get("transition_duration", 0.6)))
-            else:
-                clips.append(make_media_clip(item, media_root, settings, scene))
-                transitions.append(infer_transition(item, scene, media_index))
-                transition_durations.append(float(item.get("transition_duration", 0.6)))
-                pause = float(item.get("pause_after", 0) or 0)
-                if pause > 0:
-                    clips.append(ColorClip((settings["width"], settings["height"]), color=(0, 0, 0)).set_duration(pause))
-                    transitions.append("hold")
-                    transition_durations.append(0)
-                media_index += 1
-    if not clips:
-        raise SystemExit("No renderable clips found.")
-
-    video = apply_transitions(clips, transitions, transition_durations, settings["width"], settings["height"])
-    audio_clips = []
+    mode = data.get("mode")
     audio_settings = data.get("audio") or {}
-    if bgm:
-        bgm_clip = AudioFileClip(str(bgm)).volumex(float(audio_settings.get("bgm_volume", 0.25)))
-        audio_clips.append(bgm_clip.subclip(0, min(video.duration, bgm_clip.duration)).audio_fadeout(3))
+    voice_name = data.get("voice", "zh-TW-HsiaoChenNeural")
+    tts_volume = float(audio_settings.get("tts_volume", 1.0))
 
-    if data.get("mode") == "voice":
-        narration = collect_narration(data)
-        if narration:
-            with tempfile.TemporaryDirectory() as td:
-                tts_path = Path(td) / "narration.mp3"
+    with tempfile.TemporaryDirectory() as td:
+        tmpdir = Path(td)
+
+        # Pass 1: flatten scenes into an ordered list of render records so the audio
+        # timeline can be aligned to the exact clip each narration belongs to.
+        records: list[dict[str, Any]] = []
+        media_index = 0
+        for scene in data.get("scenes", []):
+            for item in scene.get("media", []):
+                if item.get("type") == "titlecard":
+                    records.append({"kind": "titlecard", "item": item, "scene": scene})
+                else:
+                    records.append({"kind": "media", "item": item, "scene": scene, "media_index": media_index})
+                    pause = float(item.get("pause_after", 0) or 0)
+                    if pause > 0:
+                        records.append({"kind": "pause", "duration": pause})
+                    media_index += 1
+
+        # Pass 2: in voice mode generate one TTS clip per narrated media item and
+        # stretch still photos so they last at least as long as their narration.
+        if mode == "voice":
+            tts_index = 0
+            for rec in records:
+                if rec["kind"] != "media":
+                    continue
+                item = rec["item"]
+                narration = str(item.get("narration") or "").strip()
+                if not narration:
+                    continue
+                tts_path = tmpdir / f"narration_{tts_index}.mp3"
+                tts_index += 1
                 try:
-                    asyncio.run(edge_tts_to_file(narration, data.get("voice", "zh-TW-HsiaoChenNeural"), tts_path))
-                    tts_clip = AudioFileClip(str(tts_path)).volumex(float(audio_settings.get("tts_volume", 1.0)))
-                    audio_clips.append(tts_clip.subclip(0, min(video.duration, tts_clip.duration)))
+                    asyncio.run(edge_tts_to_file(narration, voice_name, tts_path))
                 except ImportError as exc:
                     raise SystemExit(
                         "voice mode requires the edge-tts Python package and internet access to Microsoft's online TTS service. "
@@ -474,9 +471,73 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
                         "or switch the script to subtitle-only mode. "
                         f"Original error: {exc}"
                     ) from exc
-    if audio_clips:
-        video = video.set_audio(CompositeAudioClip(audio_clips))
-    video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")
+                tts_clip = AudioFileClip(str(tts_path))
+                rec["tts_clip"] = tts_clip
+                files = item.get("files")
+                file_value = item.get("file")
+                is_video = (
+                    not (isinstance(files, list) and files)
+                    and isinstance(file_value, str)
+                    and Path(file_value).suffix.lower() in {".mp4", ".mov", ".m4v"}
+                )
+                if not is_video:
+                    base_dur = float(item.get("duration", settings["duration_per_image"]))
+                    rec["override_duration"] = max(base_dur, tts_clip.duration + 0.3)
+
+        # Pass 3: build the clips in order, recording each media clip's index so its
+        # narration can be placed at the matching point on the timeline.
+        clips: list[Any] = []
+        transitions: list[str] = []
+        transition_durations: list[float] = []
+        for rec in records:
+            if rec["kind"] == "titlecard":
+                item = rec["item"]
+                clips.append(make_titlecard(item, media_root, settings["width"], settings["height"], settings["font"], settings["font_size"]))
+                transitions.append(item.get("transition", "fade"))
+                transition_durations.append(float(item.get("transition_duration", 0.6)))
+            elif rec["kind"] == "pause":
+                clips.append(ColorClip((settings["width"], settings["height"]), color=(0, 0, 0)).set_duration(rec["duration"]))
+                transitions.append("hold")
+                transition_durations.append(0)
+            else:
+                item = rec["item"]
+                rec["clip_index"] = len(clips)
+                clips.append(make_media_clip(item, media_root, settings, rec["scene"], override_duration=rec.get("override_duration")))
+                transitions.append(infer_transition(item, rec["scene"], rec["media_index"]))
+                transition_durations.append(float(item.get("transition_duration", 0.6)))
+        if not clips:
+            raise SystemExit("No renderable clips found.")
+
+        durations = [float(c.duration) for c in clips]
+        video = apply_transitions(clips, transitions, transition_durations, settings["width"], settings["height"])
+
+        audio_clips: list[Any] = []
+        if bgm:
+            bgm_clip = AudioFileClip(str(bgm)).volumex(float(audio_settings.get("bgm_volume", 0.25)))
+            audio_clips.append(bgm_clip.subclip(0, min(video.duration, bgm_clip.duration)).audio_fadeout(3))
+
+        if mode == "voice":
+            # Clip k starts at sum(durations[:k]) + CONCAT_PADDING*k because the
+            # concatenation overlaps every consecutive clip by the same padding.
+            effective_padding = CONCAT_PADDING if len(clips) > 1 else 0.0
+            starts: list[float] = []
+            prefix = 0.0
+            for k, d in enumerate(durations):
+                starts.append(prefix + effective_padding * k)
+                prefix += d
+            for rec in records:
+                if rec.get("kind") != "media" or "tts_clip" not in rec:
+                    continue
+                clip_index = rec["clip_index"]
+                start = max(0.0, starts[clip_index])
+                clip_dur = durations[clip_index]
+                tts = rec["tts_clip"].volumex(tts_volume)
+                tts = tts.subclip(0, min(tts.duration, clip_dur)).set_start(start)
+                audio_clips.append(tts)
+
+        if audio_clips:
+            video = video.set_audio(CompositeAudioClip(audio_clips))
+        video.write_videofile(str(output), fps=settings["fps"], codec="libx264", audio_codec="aac")
 
 
 def main() -> int:
