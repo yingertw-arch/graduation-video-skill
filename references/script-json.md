@@ -20,12 +20,18 @@ Required: `title`, `mode`, `output`, `width`, `height`, `scenes`.
   "duration_per_image": 5,
   "visual_profile": "warm_cinematic",
   "safe_area": {"subtitle_bottom": 120, "title_margin": 160},
-  "audio": {"bgm_volume": 0.25, "tts_volume": 1.0, "sound_cues": false},
+  "audio": {"bgm_volume": 0.25, "tts_volume": 1.0, "bgm_fadeout": 3, "sound_cues": false},
   "scenes": []
 }
 ```
 
 `mode`: `voice` or `subtitle-only`.
+
+`audio.bgm_fadeout`: seconds of ending BGM fade-out (0–30, default `3`). Set `0` to let the
+track finish without a fade — useful in song-first MV mode where the song should end cleanly.
+
+In `subtitle-only` mode, `narration` is rendered as a burned-in subtitle, so it doubles as the
+on-screen lyric line for song-first MVs (see [`mv-mode.md`](mv-mode.md)).
 
 ## Scene
 

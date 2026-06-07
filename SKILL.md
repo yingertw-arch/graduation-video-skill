@@ -1,6 +1,6 @@
 ---
 name: graduation-video
-description: Create polished school montage videos from photo and video folders for graduation ceremonies, teaching records, achievement showcases, school anniversaries, field trips, class events, and ceremony playback. Use when the user asks to make a graduation video, teaching-record video, school activity video, class event montage, school photo/video montage, 學校活動影片, 畢業影片, 教學紀錄影片, 成果發表影片, 校慶影片, 校外教學影片, 班級回憶影片, or a narrated/subtitled MP4 from school photos and clips. Includes media inventory, photo-to-script mapping, Suno prompt generation from the approved script, privacy checks, narration/subtitles, BGM/MP3 review, automated validation, automated rendering, and QA. Do not trigger for unrelated generic video editing unless it is clearly a school or class activity montage.
+description: Create polished school montage videos from photo and video folders for graduation ceremonies, teaching records, achievement showcases, school anniversaries, field trips, class events, and ceremony playback. Use when the user asks to make a graduation video, teaching-record video, school activity video, class event montage, school photo/video montage, 學校活動影片, 畢業影片, 教學紀錄影片, 成果發表影片, 校慶影片, 校外教學影片, 班級回憶影片, or a narrated/subtitled MP4 from school photos and clips. Also supports a song-first MV mode that turns a song plus timed lyrics (LRC or section times) into a lyrics-to-picture music video where each lyric line/section is matched to a photo or clip and the song is the main audio (畢業歌 MV, 用歌詞配照片, 歌曲 MV). Includes media inventory, photo-to-script mapping, Suno prompt generation from the approved script, privacy checks, narration/subtitles, BGM/MP3 review, automated validation, automated rendering, and QA. Do not trigger for unrelated generic video editing unless it is clearly a school or class activity montage.
 ---
 
 # Graduation Video
@@ -8,6 +8,13 @@ description: Create polished school montage videos from photo and video folders 
 Create a school-event MP4 from a folder of photos/videos. First inventory the material, map photos to script lines, draft a `script.json`, get approvals, generate/adapt a Suno prompt when needed, then automatically validate, render, and QA the output after the user says to start final generation.
 
 ## First response
+
+First pick the mode, because it changes where the timeline comes from:
+
+- **Mode A — material-first (default):** photos/clips drive the story; you write narration/subtitles and add BGM afterward. Use this when the user has a folder and wants a montage. Follow the phased questions and workflow below.
+- **Mode B — song-first MV:** the user provides a song (+ lyrics or section times) and the lyric timeline is the skeleton; you fill each lyric line/section with a matching photo or clip, and the song itself is the main audio. Use this when the user says things like "用這首歌做 MV", "跟著歌詞配照片", or gives a Suno graduation song. See "Mode B — song-first MV" below.
+
+If the request is ambiguous, ask which mode. Then continue with the phased questions (Mode A) or the three MV questions (Mode B).
 
 Avoid overwhelming the user with a long questionnaire. Ask in phases:
 
@@ -121,6 +128,27 @@ After the approvals above are complete, when the user says "start generating", "
    - Use `ffprobe` when available to check duration, resolution, FPS, and audio streams.
    - Extract a few frames when possible and inspect title cards, cropping, subtitles, transitions, and chapter markers.
    - Report output path, duration, warnings, and next suggested polish.
+
+## Mode B — song-first MV
+
+The song's lyric timeline is the skeleton. The renderer does not change; the timeline comes from `scripts/lyrics_to_script.py` and the song is the main audio. Read `references/mv-mode.md` for input formats, chorus detection, and how durations are derived.
+
+**Three MV questions (ask before building the skeleton):**
+
+1. Show lyric subtitles on screen, or no on-screen lyrics? (controls `--no-lyrics`)
+2. Line-by-line correspondence (one photo per lyric line) or section correspondence (one photo held per verse/chorus block)? (controls `--granularity line|section`)
+3. For the chorus, prioritize the most moving graduation photos / whole-class photos / activity highlights? (the skeleton marks chorus items so you can place hero media there)
+
+**Mode B workflow:**
+
+1. **Get the song + lyric timing.** Either an LRC file (`[mm:ss.xx]lyric`) or, for Suno songs without an LRC, a sections JSON (`[{"time": "0:15", "text": "..."}, ...]`) where the teacher marks a few section start times. Get the song file too (or its duration in seconds).
+2. **Inventory the material folder** as in Mode A so you know which photos/clips are available and which are privacy risks.
+3. **Build the skeleton:** run `scripts/lyrics_to_script.py` with `--lrc` or `--sections`, `--song` (or `--song-duration`), the chosen `--granularity`, and `--no-lyrics` if subtitles are off. This produces a `subtitle-only` `script.json` whose total length matches the song, with `audio.bgm_volume: 1.0` (the song is the main audio) and each item's `duration` derived from the lyric timestamps. Chorus items carry `_section: "chorus"` and a punchier `zoom_cut` transition.
+4. **Fill the media.** Each item's `file` is a blank placeholder (with `_lyric`/`_lyrics`/`_start` annotations). Map a photo or clip to each lyric line/section based on its content; put the strongest hero/class/highlight media on the chorus items. You can also pre-fill sequentially with `--media-list`/`--media-dir` and then adjust.
+5. **Get approvals** using the same gates below — for Mode B, music approval means confirming the song + lyric timing, since the song is the audio.
+6. **Validate** the filled `script.json` (`scripts/validate_script.py`). Total duration should already be within range because it equals the song length.
+7. **Render** with `scripts/generate_video.py`, passing the song as `--bgm`. Set `audio.bgm_fadeout` to 0 to let the song finish cleanly, or a few seconds to fade out.
+8. **QA** the MP4 as in Mode A: confirm total length ≈ song length, the audio track is the song, and subtitles match the lyrics when shown.
 
 ## Defaults
 

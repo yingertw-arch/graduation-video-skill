@@ -4,6 +4,15 @@ Turn a folder of school photos and clips into a polished, narrated or subtitled 
 montage — graduation ceremonies, teaching records, achievement showcases, school
 anniversaries, field trips, and class events.
 
+Two ways to drive the timeline:
+
+- **Mode A — material-first (default):** photos/clips drive the story; you write the
+  narration/subtitles and add background music afterward.
+- **Mode B — song-first MV:** give a song plus timed lyrics (LRC or a few section times) and
+  the lyric timeline becomes the skeleton — each lyric line/section is matched to a photo or
+  clip, the chorus gets your hero shots, and the song itself is the main audio. See
+  [`references/mv-mode.md`](references/mv-mode.md).
+
 The skill is driven by an AI agent (see [`SKILL.md`](SKILL.md)), but the bundled
 Python scripts can also be run directly: inventory media, validate a `script.json`,
 and render the final video.
@@ -104,6 +113,29 @@ The MP4 is written next to the script (or use `--output`).
 
 Full cross-platform commands are in [`references/video-generation.md`](references/video-generation.md).
 
+## Song-first MV example (Mode B)
+
+Given a song and an LRC (or section times), build a `script.json` whose length matches the song:
+
+```bash
+python scripts/lyrics_to_script.py \
+  --lrc materials/song.lrc \
+  --song materials/song.mp3 \
+  --granularity line \
+  --out materials/script.json
+```
+
+Each lyric line becomes a media slot with a blank `file` placeholder (chorus slots are marked);
+fill each with a matching photo or clip — or pre-fill with `--media-dir materials` — then validate
+and render with the song as the main audio:
+
+```bash
+python scripts/generate_video.py --script materials/script.json --media-root materials --bgm materials/song.mp3
+```
+
+Set `audio.bgm_fadeout` to `0` (the MV default) to let the song finish cleanly. Full details:
+[`references/mv-mode.md`](references/mv-mode.md).
+
 ## Modes
 
 - **`voice`** — each narrated photo gets its own TTS clip; still photos are
@@ -127,5 +159,6 @@ Full cross-platform commands are in [`references/video-generation.md`](reference
 - [`SKILL.md`](SKILL.md) — agent workflow and approval gates
 - [`scripts/inventory_media.py`](scripts/inventory_media.py) — media inventory + privacy/duplicate checks
 - [`scripts/validate_script.py`](scripts/validate_script.py) — `script.json` validation
+- [`scripts/lyrics_to_script.py`](scripts/lyrics_to_script.py) — song-first MV skeleton from timed lyrics (Mode B)
 - [`scripts/generate_video.py`](scripts/generate_video.py) — baseline renderer
 - [`references/`](references) — schema, design presets, and full command reference

@@ -161,6 +161,7 @@ def validate(
     if isinstance(audio, dict):
         number(r, "audio.bgm_volume", audio.get("bgm_volume"), 0, 1)
         number(r, "audio.tts_volume", audio.get("tts_volume"), 0, 2)
+        number(r, "audio.bgm_fadeout", audio.get("bgm_fadeout"), 0, 30)
     elif audio is not None:
         r.error("audio must be an object when present.")
 

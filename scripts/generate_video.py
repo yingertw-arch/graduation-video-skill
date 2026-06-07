@@ -514,7 +514,12 @@ def build_video(data: dict[str, Any], media_root: Path, bgm: Path | None, output
         audio_clips: list[Any] = []
         if bgm:
             bgm_clip = AudioFileClip(str(bgm)).volumex(float(audio_settings.get("bgm_volume", 0.25)))
-            audio_clips.append(bgm_clip.subclip(0, min(video.duration, bgm_clip.duration)).audio_fadeout(3))
+            bgm_track = bgm_clip.subclip(0, min(video.duration, bgm_clip.duration))
+            # MV mode wants the song to finish cleanly, so the fade is configurable; 0 = no fade.
+            fadeout = float(audio_settings.get("bgm_fadeout", 3))
+            if fadeout > 0:
+                bgm_track = bgm_track.audio_fadeout(fadeout)
+            audio_clips.append(bgm_track)
 
         if mode == "voice":
             # Clip k starts at sum(durations[:k]) + CONCAT_PADDING*k because the
