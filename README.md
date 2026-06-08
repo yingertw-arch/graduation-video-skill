@@ -166,3 +166,6 @@ Set `audio.bgm_fadeout` to `0` (the MV default) to let the song finish cleanly. 
 - [`scripts/lyrics_to_script.py`](scripts/lyrics_to_script.py) — song-first MV skeleton from timed lyrics (Mode B)
 - [`scripts/generate_video.py`](scripts/generate_video.py) — baseline renderer
 - [`references/`](references) — schema, design presets, and full command reference
+
+
+Note: the baseline renderer uses Pillow built-in font for draft stability in constrained Windows runtimes; advanced CJK typography should be handled by a richer renderer or a verified safe font path.

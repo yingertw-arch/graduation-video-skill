@@ -73,27 +73,22 @@ def ensure_render_dependencies() -> None:
 
 
 def load_font(font_path: str | None, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    candidates = [
-        font_path,
-        # Windows CJK fonts
-        "C:/Windows/Fonts/msjh.ttc",
-        "C:/Windows/Fonts/msjhbd.ttc",
-        "C:/Windows/Fonts/mingliu.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-        # macOS CJK fonts
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        # Linux / Noto CJK fonts
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/arphic/uming.ttc",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return ImageFont.truetype(candidate, size)
+    # The baseline renderer prioritizes stability for draft generation. Some
+    # Windows TrueType/TTC fonts can hard-crash Pillow/FreeType in this runtime,
+    # so use Pillow's built-in bitmap font unless a future renderer provides a
+    # verified safe CJK text path.
     return ImageFont.load_default()
+
+
+def text_box_size(text: str, font: ImageFont.ImageFont) -> tuple[int, int]:
+    if not text:
+        return 0, 0
+    try:
+        box = font.getbbox(text)
+        return max(0, box[2] - box[0]), max(0, box[3] - box[1])
+    except Exception:
+        size = getattr(font, "size", 24) or 24
+        return int(len(text) * size * 0.55), int(size * 1.2)
 
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> list[str]:
@@ -103,7 +98,7 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, m
     current = ""
     for ch in text:
         trial = current + ch
-        if draw.textbbox((0, 0), trial, font=font)[2] <= max_width or not current:
+        if text_box_size(trial, font)[0] <= max_width or not current:
             current = trial
         else:
             lines.append(current)
@@ -122,12 +117,12 @@ def draw_centered_text(
     stroke: int = 2,
 ) -> None:
     draw = ImageDraw.Draw(image)
-    line_heights = [draw.textbbox((0, 0), line, font=font)[3] for line in lines]
+    line_heights = [text_box_size(line, font)[1] for line in lines]
     total_h = sum(line_heights) + max(0, len(lines) - 1) * 18
     y = center_y - total_h // 2
     for line, h in zip(lines, line_heights):
-        box = draw.textbbox((0, 0), line, font=font)
-        x = (image.width - (box[2] - box[0])) // 2
+        text_w, _ = text_box_size(line, font)
+        x = (image.width - text_w) // 2
         draw.text((x, y), line, font=font, fill=fill, stroke_width=stroke, stroke_fill=(0, 0, 0))
         y += h + 18
 
@@ -146,9 +141,9 @@ def make_background(path: Path | None, width: int, height: int) -> Image.Image:
 def make_titlecard(item: dict[str, Any], media_root: Path, width: int, height: int, font_path: str | None, font_size: int) -> ImageClip:
     bg_file = item.get("background_file")
     bg_path = media_root / bg_file if bg_file else None
-    image = make_background(bg_path, width, height)
-    overlay = Image.new("RGBA", image.size, (0, 0, 0, 70))
-    image = Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+    image = make_background(bg_path, width, height).convert("RGB")
+    dark = Image.new("RGB", image.size, (0, 0, 0))
+    image = Image.blend(image, dark, 0.28)
 
     title_font = load_font(font_path, int(font_size * 1.45))
     sub_font = load_font(font_path, int(font_size * 0.8))
@@ -386,14 +381,14 @@ def subtitle_clip(text: str, duration: float, width: int, height: int, font_path
     draw = ImageDraw.Draw(img)
     font = load_font(font_path, font_size)
     lines = wrap_text(draw, text, font, width - 260)[-2:]
-    line_h = max(draw.textbbox((0, 0), line, font=font)[3] for line in lines)
+    line_h = max(text_box_size(line, font)[1] for line in lines)
     total_h = len(lines) * line_h + (len(lines) - 1) * 10
     y = height - bottom - total_h
     for line in lines:
-        box = draw.textbbox((0, 0), line, font=font)
-        x = (width - (box[2] - box[0])) // 2
+        text_w, _ = text_box_size(line, font)
+        x = (width - text_w) // 2
         pad = 18
-        draw.rounded_rectangle((x - pad, y - 8, x + (box[2] - box[0]) + pad, y + line_h + 12), radius=12, fill=(0, 0, 0, 145))
+        draw.rounded_rectangle((x - pad, y - 8, x + text_w + pad, y + line_h + 12), radius=12, fill=(0, 0, 0, 145))
         draw.text((x, y), line, font=font, fill=(255, 255, 255), stroke_width=1, stroke_fill=(0, 0, 0))
         y += line_h + 10
     return ImageClip(np.array(img)).set_duration(duration)
