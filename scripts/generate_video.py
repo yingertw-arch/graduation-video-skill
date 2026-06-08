@@ -73,21 +73,41 @@ def ensure_render_dependencies() -> None:
 
 
 def load_font(font_path: str | None, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    # The baseline renderer prioritizes stability for draft generation. Some
-    # Windows TrueType/TTC fonts can hard-crash Pillow/FreeType in this runtime,
-    # so use Pillow's built-in bitmap font unless a future renderer provides a
-    # verified safe CJK text path.
+    # Avoid msjh.ttc/msjhbd.ttc: they can hard-crash Pillow/FreeType in this
+    # Windows runtime. Prefer older CJK fonts that render without textbbox.
+    unsafe = {"msjh.ttc", "msjhbd.ttc", "msyh.ttc", "msyhbd.ttc"}
+    candidates = [
+        font_path,
+        "C:/Windows/Fonts/mingliu.ttc",
+        "C:/Windows/Fonts/kaiu.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate)
+        if path.name.lower() in unsafe or not path.exists():
+            continue
+        try:
+            return ImageFont.truetype(str(path), size)
+        except Exception:
+            continue
     return ImageFont.load_default()
 
 
 def text_box_size(text: str, font: ImageFont.ImageFont) -> tuple[int, int]:
     if not text:
         return 0, 0
+    size = getattr(font, "size", 24) or 24
+    if any(ord(ch) > 127 for ch in text):
+        return int(len(text) * size), int(size * 1.2)
     try:
         box = font.getbbox(text)
         return max(0, box[2] - box[0]), max(0, box[3] - box[1])
     except Exception:
-        size = getattr(font, "size", 24) or 24
         return int(len(text) * size * 0.55), int(size * 1.2)
 
 

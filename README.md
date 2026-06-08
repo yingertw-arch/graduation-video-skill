@@ -168,4 +168,4 @@ Set `audio.bgm_fadeout` to `0` (the MV default) to let the song finish cleanly. 
 - [`references/`](references) — schema, design presets, and full command reference
 
 
-Note: the baseline renderer uses Pillow built-in font for draft stability in constrained Windows runtimes; advanced CJK typography should be handled by a richer renderer or a verified safe font path.
+Note: the baseline renderer avoids Windows msjh.ttc/msjhbd.ttc because they can crash Pillow/FreeType in constrained runtimes; it prefers safer CJK fonts such as mingliu.ttc or kaiu.ttf when available.

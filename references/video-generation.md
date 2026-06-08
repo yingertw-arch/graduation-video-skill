@@ -222,4 +222,4 @@ ffmpeg -y -i "output.mp4" -vf "fps=1/30" "qa_frame_%03d.jpg"
 Check: file size, resolution, duration, audio stream, subtitle placement, title-card fit, cropping, duplicate/repeated photos, unsuitable photos, transition smoothness, filter consistency, BGM balance, and whether privacy-sensitive material appears.
 
 
-Note: the baseline renderer uses Pillow built-in font for draft stability in constrained Windows runtimes; advanced CJK typography should be handled by a richer renderer or a verified safe font path.
+Note: the baseline renderer avoids Windows msjh.ttc/msjhbd.ttc because they can crash Pillow/FreeType in constrained runtimes; it prefers safer CJK fonts such as mingliu.ttc or kaiu.ttf when available.
